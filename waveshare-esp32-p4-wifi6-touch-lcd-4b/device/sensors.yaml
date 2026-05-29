@@ -193,3 +193,13 @@ text_sensor:
 # =============================================================================
 
 binary_sensor:
+  - platform: homeassistant
+    id: printer_power_state
+    entity_id: switch.3d_drucker
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        lvgl.widget.update:
+          id: printer_power_button
+          state:
+            checked: !lambda return x;
