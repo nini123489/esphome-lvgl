@@ -194,6 +194,16 @@ sensor:
             format: "%.0f"
             args: [ 'x' ]
 
+  - platform: homeassistant
+    entity_id: sensor.altdorf_current_power
+    id: altdorf_current_power
+    on_value:
+      - lvgl.label.update:
+          id: info_box_value
+          text:
+            format: "%.0f W"
+            args: [ 'x' ]
+
 # =============================================================================
 # TEXT SENSORS (String Values)
 # =============================================================================
