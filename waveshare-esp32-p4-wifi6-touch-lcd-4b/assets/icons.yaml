@@ -27,6 +27,7 @@ font:
       "\U000F0317",  # mdi-lan
       "\U000F0425",  # mdi-power
       "\U000F050F",  # mdi-thermometer
+      "\U000F070D",  # mdi-robot-vacuum
       ]
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_small
@@ -59,3 +60,4 @@ substitutions:
   lan:            "\U000F0317"
   power:          "\U000F0425"
   thermometer:    "\U000F050F"
+  vacuum:         "\U000F070D"

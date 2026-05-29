@@ -199,7 +199,7 @@ sensor:
     id: altdorf_current_power
     on_value:
       - lvgl.label.update:
-          id: info_box_value
+          id: info_solar_value
           text:
             format: "%.0f W"
             args: [ 'x' ]
