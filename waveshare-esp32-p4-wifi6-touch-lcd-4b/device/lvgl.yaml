@@ -462,16 +462,16 @@ lvgl:
                   align: top_mid
                   y: 65
 
-              # Print status (e.g. "Druckt", "Bereit", "Pausiert")
+              # Print status (e.g. "Druckt", "Bereit", "Pausiert", "Offline")
               - label:
                   id: printer_lab_status_label
-                  text: "--"
+                  text: "Offline"
                   text_font: roboto19_font
                   text_color: 0xE06A2A
                   align: center
                   y: -150
 
-              # Large print progress percentage
+              # Large print progress percentage (hidden when offline)
               - obj:
                   id: printer_lab_progress_row
                   width: SIZE_CONTENT
@@ -482,6 +482,7 @@ lvgl:
                   border_width: 0
                   pad_all: 0
                   clickable: false
+                  hidden: true
                   layout:
                     type: flex
                     flex_flow: row
@@ -497,7 +498,7 @@ lvgl:
                         text_font: roboto19_font
                         text_color: 0xE6E6E6
 
-              # Power draw (Watt)
+              # Power draw (Watt) (hidden when offline)
               - obj:
                   id: printer_lab_power_row
                   width: SIZE_CONTENT
@@ -508,6 +509,7 @@ lvgl:
                   border_width: 0
                   pad_all: 0
                   clickable: false
+                  hidden: true
                   layout:
                     type: flex
                     flex_flow: row
@@ -524,6 +526,9 @@ lvgl:
                         text_color: 0xB0B0B0
 
               # On/Off toggle button
+              # If the printer is currently printing (power state ON and
+              # progress between 0 and 100), tapping shows a confirmation
+              # modal instead of toggling immediately.
               - button:
                   id: printer_lab_power_button
                   width: 220px
@@ -539,7 +544,94 @@ lvgl:
                         text_font: roboto19_font
                         align: center
                   on_click:
-                    - homeassistant.service:
-                        service: switch.toggle
-                        data:
-                          entity_id: switch.3d_drucker
+                    - if:
+                        condition:
+                          lambda: |-
+                            if (!id(printer_power_state).state) return false;
+                            if (!id(printer_progress_value).has_state()) return false;
+                            float p = id(printer_progress_value).state;
+                            return p > 0.0f && p < 100.0f;
+                        then:
+                          - lvgl.widget.update:
+                              id: printer_confirm_modal
+                              hidden: false
+                          - lvgl.widget.update:
+                              id: printer_lab_power_button
+                              state:
+                                checked: true
+                        else:
+                          - homeassistant.service:
+                              service: switch.toggle
+                              data:
+                                entity_id: switch.3d_drucker
+
+              # Confirmation modal — shown only when the user tries to turn
+              # off the printer mid-print. Defined last so it renders on top.
+              - obj:
+                  id: printer_confirm_modal
+                  width: 100%
+                  height: 100%
+                  align: center
+                  bg_color: 0x000000
+                  bg_opa: 70%
+                  border_width: 0
+                  pad_all: 0
+                  hidden: true
+                  clickable: true
+                  widgets:
+                    - obj:
+                        width: 500px
+                        height: 280px
+                        align: center
+                        bg_color: 0x2A2A2A
+                        bg_opa: cover
+                        border_width: 2
+                        border_color: 0xE06A2A
+                        radius: 16
+                        pad_all: 20
+                        widgets:
+                          - label:
+                              text: "Drucker laeuft"
+                              text_font: roboto19_font
+                              text_color: 0xE06A2A
+                              align: top_mid
+                          - label:
+                              text: "Wirklich ausschalten?"
+                              text_font: roboto19_font
+                              text_color: 0xFFFFFF
+                              align: center
+                              y: -20
+                          - button:
+                              width: 200px
+                              height: 90px
+                              align: bottom_left
+                              styles: control
+                              widgets:
+                                - label:
+                                    text: "Abbrechen"
+                                    text_font: roboto19_font
+                                    align: center
+                              on_click:
+                                - lvgl.widget.update:
+                                    id: printer_confirm_modal
+                                    hidden: true
+                          - button:
+                              width: 200px
+                              height: 90px
+                              align: bottom_right
+                              styles: control
+                              bg_color: 0xCC2A2A
+                              widgets:
+                                - label:
+                                    text: "Ausschalten"
+                                    text_font: roboto19_font
+                                    text_color: 0xFFFFFF
+                                    align: center
+                              on_click:
+                                - homeassistant.service:
+                                    service: switch.toggle
+                                    data:
+                                      entity_id: switch.3d_drucker
+                                - lvgl.widget.update:
+                                    id: printer_confirm_modal
+                                    hidden: true

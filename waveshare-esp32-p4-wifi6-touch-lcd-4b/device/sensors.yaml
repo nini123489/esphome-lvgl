@@ -203,9 +203,15 @@ text_sensor:
     entity_id: sensor.3d_drucker_druckstatus
     id: printer_status_value
     on_value:
-      - lvgl.label.update:
-          id: printer_lab_status_label
-          text: !lambda return x;
+      # Label nur aktualisieren, wenn der Drucker AN ist.
+      # Ist er AUS, bleibt das vom binary_sensor gesetzte "Offline" stehen.
+      - if:
+          condition:
+            lambda: 'return id(printer_power_state).state;'
+          then:
+            - lvgl.label.update:
+                id: printer_lab_status_label
+                text: !lambda return x;
 
 
 # =============================================================================
@@ -231,3 +237,36 @@ binary_sensor:
             id: printer_lab_power_button
             state:
               checked: !lambda return x;
+        - if:
+            condition:
+              lambda: 'return x;'
+            then:
+              # Drucker AN: Widgets sichtbar, Label = aktueller Status (falls bekannt)
+              - lvgl.widget.update:
+                  id: printer_lab_progress_row
+                  hidden: false
+              - lvgl.widget.update:
+                  id: printer_lab_power_row
+                  hidden: false
+              - if:
+                  condition:
+                    lambda: 'return id(printer_status_value).has_state();'
+                  then:
+                    - lvgl.label.update:
+                        id: printer_lab_status_label
+                        text: !lambda 'return id(printer_status_value).state;'
+                  else:
+                    - lvgl.label.update:
+                        id: printer_lab_status_label
+                        text: "--"
+            else:
+              # Drucker AUS: Widgets ausblenden, Label "Offline"
+              - lvgl.widget.update:
+                  id: printer_lab_progress_row
+                  hidden: true
+              - lvgl.widget.update:
+                  id: printer_lab_power_row
+                  hidden: true
+              - lvgl.label.update:
+                  id: printer_lab_status_label
+                  text: "Offline"
