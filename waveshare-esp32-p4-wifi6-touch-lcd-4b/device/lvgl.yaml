@@ -96,11 +96,11 @@ lvgl:
         #
         # WHEN PRESSED:
         #   Calls Home Assistant service: switch.toggle
-        #   Target: switch.office_3d_printer_power
+        #   Target: switch.3d_drucker
         #   (Toggle means: if ON, turn OFF. If OFF, turn ON.)
         #
         # HOW THE BUTTON KNOWS IF IT'S ACTIVE:
-        #   sensors.yaml monitors: switch.office_3d_printer_power
+        #   sensors.yaml monitors: switch.3d_drucker
         #   When the switch is ON, this button appears "checked" (highlighted)
         #   When the switch is OFF, this button appears unchecked (dimmed)
         # =========================================================================
@@ -111,7 +111,7 @@ lvgl:
             id: printer_power_button
             styles: control
             grid_cell_column_pos: 2
-            grid_cell_row_pos: 1
+            grid_cell_row_pos: 0
             widgets:
               # Icon (shown when OFF)
               - label:
@@ -152,7 +152,7 @@ lvgl:
               - homeassistant.service:
                   service: switch.toggle
                   data:
-                    entity_id: switch.office_3d_printer_power
+                    entity_id: switch.3d_drucker
 
 
 
