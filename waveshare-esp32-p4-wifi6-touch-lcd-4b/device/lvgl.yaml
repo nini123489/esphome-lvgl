@@ -88,6 +88,27 @@ lvgl:
       widgets:
 
         # =========================================================================
+        # BUTTON: Scenes (opens scene selector page)
+        # =========================================================================
+        - button:
+            height: $button_height_single
+            width: $button_width
+            id: scenes_button
+            styles: control
+            grid_cell_column_pos: 0
+            grid_cell_row_pos: 0
+            widgets:
+              - label:
+                  text_font: $icon_font
+                  align: top_left
+                  text: $lightbulb
+              - label:
+                  align: bottom_left
+                  text: "Szenen"
+            on_click:
+              - lvgl.page.show: scenes_page
+
+        # =========================================================================
         # BUTTON: 3D Printer (opens detail page)
         # =========================================================================
         # WHAT THIS BUTTON DOES:
@@ -635,3 +656,123 @@ lvgl:
                                 - lvgl.widget.update:
                                     id: printer_confirm_modal
                                     hidden: true
+
+    - id: scenes_page
+      layout:
+        type: flex
+        flex_flow: column
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x1E1E1E
+      bg_opa: cover
+
+      widgets:
+        - obj:
+            id: scenes_root
+            width: 100%
+            height: 100%
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            widgets:
+              # Back button
+              - button:
+                  id: scenes_back_button
+                  width: 90px
+                  height: 90px
+                  x: 8
+                  y: 51
+                  styles: control
+                  widgets:
+                    - label:
+                        text_font: $icon_font
+                        align: center
+                        text: $chevron_left
+                  on_click:
+                    - lvgl.page.show: main_page
+
+              # Page title
+              - label:
+                  text: "Szenen"
+                  text_font: roboto19_font
+                  text_color: 0xFFFFFF
+                  align: top_mid
+                  y: 65
+
+              # Scene list (vertical stack of toggle buttons)
+              - obj:
+                  id: scenes_list
+                  width: 460px
+                  height: SIZE_CONTENT
+                  align: center
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: column
+                    pad_row: 16
+                  widgets:
+                    # Abendlicht
+                    - button:
+                        id: scene_abendlicht_button
+                        width: 100%
+                        height: 110px
+                        checkable: true
+                        styles: control
+                        widgets:
+                          - label:
+                              text_font: $icon_font
+                              align: left_mid
+                              x: 20
+                              text: $nightlight
+                          - label:
+                              text: "Abendlicht"
+                              text_font: roboto19_font
+                              align: center
+                        on_click:
+                          - homeassistant.service:
+                              service: scene.turn_on
+                              data:
+                                entity_id: scene.abendlicht
+                          - lvgl.widget.update:
+                              id: scene_abendlicht_button
+                              state:
+                                checked: true
+                          - lvgl.widget.update:
+                              id: scene_licht_aus_button
+                              state:
+                                checked: false
+
+                    # Licht aus
+                    - button:
+                        id: scene_licht_aus_button
+                        width: 100%
+                        height: 110px
+                        checkable: true
+                        styles: control
+                        widgets:
+                          - label:
+                              text_font: $icon_font
+                              align: left_mid
+                              x: 20
+                              text: $lightbulb
+                          - label:
+                              text: "Licht aus"
+                              text_font: roboto19_font
+                              align: center
+                        on_click:
+                          - homeassistant.service:
+                              service: scene.turn_on
+                              data:
+                                entity_id: scene.licht_aus
+                          - lvgl.widget.update:
+                              id: scene_licht_aus_button
+                              state:
+                                checked: true
+                          - lvgl.widget.update:
+                              id: scene_abendlicht_button
+                              state:
+                                checked: false
