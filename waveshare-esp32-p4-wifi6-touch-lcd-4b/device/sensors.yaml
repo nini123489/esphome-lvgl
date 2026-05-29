@@ -93,13 +93,13 @@ sensor:
   # ===========================================================================
   - platform: homeassistant
     entity_id: sensor.met_no_hourly_temperature
-    id: aussentemperatur
+    id: outdoor_temperature
     on_value:
       - lvgl.label.update:
           id: temperatures
           text:
             format: "%d° / %d°"
-            args: [ '(int)round(x)', '(int)round(id(office_temperature).state)' ]
+            args: [ '(int)round(x)', '(int)round(id(nini_room_temp).state)' ]
 
 
   # ===========================================================================
