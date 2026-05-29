@@ -88,16 +88,11 @@ lvgl:
       widgets:
 
         # =========================================================================
-        # BUTTON: 3D Printer Power
+        # BUTTON: 3D Printer (opens detail page)
         # =========================================================================
         # WHAT THIS BUTTON DOES:
-        #   Turns the 3D printer's power outlet on or off.
-        #   This controls a smart plug that supplies power to the printer.
-        #
-        # WHEN PRESSED:
-        #   Calls Home Assistant service: switch.toggle
-        #   Target: switch.3d_drucker
-        #   (Toggle means: if ON, turn OFF. If OFF, turn ON.)
+        #   Opens the printer detail page (printer_lab_page) where the user can
+        #   toggle power and see live status (power draw, print progress, state).
         #
         # HOW THE BUTTON KNOWS IF IT'S ACTIVE:
         #   sensors.yaml monitors: switch.3d_drucker
@@ -149,10 +144,7 @@ lvgl:
                   id: printer_power_label
                   text: "Printer"
             on_click:
-              - homeassistant.service:
-                  service: switch.toggle
-                  data:
-                    entity_id: switch.3d_drucker
+              - lvgl.page.show: printer_lab_page
 
 
 
@@ -425,3 +417,129 @@ lvgl:
                               return id(heating_target_temperature).state + 0.5f;
                             }
                             return 0.0f;
+
+    - id: printer_lab_page
+      layout:
+        type: flex
+        flex_flow: column
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x1E1E1E
+      bg_opa: cover
+
+      widgets:
+        - obj:
+            id: printer_lab_root
+            width: 100%
+            height: 100%
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            widgets:
+              # Back button
+              - button:
+                  id: printer_lab_back_button
+                  width: 90px
+                  height: 90px
+                  x: 8
+                  y: 51
+                  styles: control
+                  widgets:
+                    - label:
+                        text_font: $icon_font
+                        align: center
+                        text: $chevron_left
+                  on_click:
+                    - lvgl.page.show: main_page
+
+              # Page title
+              - label:
+                  id: printer_lab_title
+                  text: "3D-Drucker"
+                  text_font: roboto19_font
+                  text_color: 0xFFFFFF
+                  align: top_mid
+                  y: 65
+
+              # Print status (e.g. "Druckt", "Bereit", "Pausiert")
+              - label:
+                  id: printer_lab_status_label
+                  text: "--"
+                  text_font: roboto19_font
+                  text_color: 0xE06A2A
+                  align: center
+                  y: -150
+
+              # Large print progress percentage
+              - obj:
+                  id: printer_lab_progress_row
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  align: center
+                  y: -60
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: end
+                  widgets:
+                    - label:
+                        id: printer_lab_progress_label
+                        text: "--"
+                        text_font: roboto48_font
+                        text_color: 0xE6E6E6
+                    - label:
+                        text: "%"
+                        text_font: roboto19_font
+                        text_color: 0xE6E6E6
+
+              # Power draw (Watt)
+              - obj:
+                  id: printer_lab_power_row
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  align: center
+                  y: 30
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                  widgets:
+                    - label:
+                        id: printer_lab_power_label
+                        text: "--"
+                        text_font: roboto19_font
+                        text_color: 0xB0B0B0
+                    - label:
+                        text: " W"
+                        text_font: roboto19_font
+                        text_color: 0xB0B0B0
+
+              # On/Off toggle button
+              - button:
+                  id: printer_lab_power_button
+                  width: 220px
+                  height: 100px
+                  align: bottom_mid
+                  y: -60
+                  checkable: true
+                  styles: control
+                  widgets:
+                    - label:
+                        id: printer_lab_power_button_label
+                        text: "An / Aus"
+                        text_font: roboto19_font
+                        align: center
+                  on_click:
+                    - homeassistant.service:
+                        service: switch.toggle
+                        data:
+                          entity_id: switch.3d_drucker

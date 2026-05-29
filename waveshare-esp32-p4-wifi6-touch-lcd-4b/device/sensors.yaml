@@ -174,14 +174,38 @@ sensor:
             int tgt_v = (int)roundf(tgt * 2.0f);
             return cur_v < tgt_v ? cur_v : tgt_v;
 
+  - platform: homeassistant
+    entity_id: sensor.3d_drucker_power
+    id: printer_power_value
+    on_value:
+      - lvgl.label.update:
+          id: printer_lab_power_label
+          text:
+            format: "%.0f"
+            args: [ 'x' ]
+
+  - platform: homeassistant
+    entity_id: sensor.3d_drucker_druckfortschritt
+    id: printer_progress_value
+    on_value:
+      - lvgl.label.update:
+          id: printer_lab_progress_label
+          text:
+            format: "%.0f"
+            args: [ 'x' ]
+
 # =============================================================================
 # TEXT SENSORS (String Values)
 # =============================================================================
 
 text_sensor:
-
-
-
+  - platform: homeassistant
+    entity_id: sensor.3d_drucker_druckstatus
+    id: printer_status_value
+    on_value:
+      - lvgl.label.update:
+          id: printer_lab_status_label
+          text: !lambda return x;
 
 
 # =============================================================================
@@ -199,7 +223,11 @@ binary_sensor:
     trigger_on_initial_state: true
     on_state:
       then:
-        lvgl.widget.update:
-          id: printer_power_button
-          state:
-            checked: !lambda return x;
+        - lvgl.widget.update:
+            id: printer_power_button
+            state:
+              checked: !lambda return x;
+        - lvgl.widget.update:
+            id: printer_lab_power_button
+            state:
+              checked: !lambda return x;
