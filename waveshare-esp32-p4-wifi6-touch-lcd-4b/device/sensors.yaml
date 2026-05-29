@@ -39,58 +39,20 @@
 # =============================================================================
 
 sensor:
-
-  # ===========================================================================
-  # SENSOR: Office Temperature (Indoor)
-  # ===========================================================================
-  # WHAT IT MONITORS:
-  #   The temperature inside the office from sensor.office_temperature
-  #   (This could be from a smart thermostat, dedicated sensor, etc.)
-  #
-  # WHAT IT UPDATES:
-  #   The "temperatures" label in the top-left corner of the screen
-  #   Format: "outdoor° / indoor°" (e.g., "15° / 22°")
-  #
-  # HOW IT WORKS:
-  #   When the office temperature changes in Home Assistant, this sensor
-  #   receives the new value and updates the label text. It combines the
-  #   outdoor temperature (from the other sensor below) with this value.
-  #
-  # RELATED UI ELEMENT:
-  #   lvgl.yaml → temperatures label (id: temperatures)
-  # ===========================================================================
   - platform: homeassistant
     entity_id: sensor.eve_room_af92_temperature
     id: nini_room_temp
     on_value:
       - lvgl.label.update:
           id: temperatures
-          text:
-            format: "%d° / %d°"
-            args: [ '(int)round(id(outdoor_temperature).state)', '(int)round(x)' ]
+          text: !lambda |-
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%s° / %d°",
+              id(outdoor_temperature).has_state() ? std::to_string((int)round(id(outdoor_temperature).state)).c_str() : "-",
+              (int)round(x)
+            );
+            return std::string(buf);
 
-  # ===========================================================================
-  # SENSOR: Outdoor Temperature
-  # ===========================================================================
-  # WHAT IT MONITORS:
-  #   The temperature outside from sensor.outdoor_temperature
-  #   (This could be from a weather service, outdoor sensor, etc.)
-  #
-  # WHAT IT UPDATES:
-  #   The "temperatures" label in the top-left corner of the screen
-  #   Format: "outdoor° / indoor°" (e.g., "15° / 22°")
-  #
-  # HOW IT WORKS:
-  #   When the outdoor temperature changes in Home Assistant, this sensor
-  #   receives the new value and updates the label text. It combines this
-  #   value with the office temperature (from the sensor above).
-  #
-  # NOTE: Both temperature sensors update the same label. Either one changing
-  #       will refresh the display with both current values.
-  #
-  # RELATED UI ELEMENT:
-  #   lvgl.yaml → temperatures label (id: temperatures)
-  # ===========================================================================
   - platform: homeassistant
     entity_id: weather.forecast_home
     attribute: temperature
@@ -98,9 +60,13 @@ sensor:
     on_value:
       - lvgl.label.update:
           id: temperatures
-          text:
-            format: "%d° / %d°"
-            args: [ '(int)round(x)', '(int)round(id(nini_room_temp).state)' ]
+          text: !lambda |-
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d° / %s°",
+              (int)round(x),
+              id(nini_room_temp).has_state() ? std::to_string((int)round(id(nini_room_temp).state)).c_str() : "-"
+            );
+            return std::string(buf);
 
 
   # ===========================================================================
