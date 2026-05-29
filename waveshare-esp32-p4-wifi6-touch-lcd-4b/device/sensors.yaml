@@ -47,9 +47,11 @@ sensor:
           id: temperatures
           text: !lambda |-
             char buf[32];
-            snprintf(buf, sizeof(buf), "%s° / %d°",
-              id(outdoor_temperature).has_state() ? std::to_string((int)round(id(outdoor_temperature).state)).c_str() : "-",
-              (int)round(x)
+            int out = (int)round(id(outdoor_temperature).state);
+            int ind = (int)round(x);
+            snprintf(buf, sizeof(buf), "%s° / %s°",
+              (out == 2147483647 || out < -100 || out > 100) ? "-" : std::to_string(out).c_str(),
+              (ind == 2147483647 || ind < -100 || ind > 100) ? "-" : std::to_string(ind).c_str()
             );
             return std::string(buf);
 
@@ -62,9 +64,11 @@ sensor:
           id: temperatures
           text: !lambda |-
             char buf[32];
-            snprintf(buf, sizeof(buf), "%d° / %s°",
-              (int)round(x),
-              id(nini_room_temp).has_state() ? std::to_string((int)round(id(nini_room_temp).state)).c_str() : "-"
+            int out = (int)round(x);
+            int ind = (int)round(id(nini_room_temp).state);
+            snprintf(buf, sizeof(buf), "%s° / %s°",
+              (out == 2147483647 || out < -100 || out > 100) ? "-" : std::to_string(out).c_str(),
+              (ind == 2147483647 || ind < -100 || ind > 100) ? "-" : std::to_string(ind).c_str()
             );
             return std::string(buf);
 
