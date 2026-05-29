@@ -1,12 +1,11 @@
-# Backlight
+# Backlight (exposed to Home Assistant as "Display")
 light:
   - platform: monochromatic
-    name: Backlight
+    name: Display
     id: backlight
     output: backlight_output
     restore_mode: ALWAYS_ON
     default_transition_length: 1s
-    internal: true
 
 # Screensaver Presence Trigger
 binary_sensor:
