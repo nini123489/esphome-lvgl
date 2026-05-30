@@ -16,12 +16,14 @@
 # -----------------------------------------------------------------------------
 esp32:
   board: esp32-p4-evboard
+  variant: esp32p4
   flash_size: 32MB
   cpu_frequency: 360MHz
   engineering_sample: true
   framework:
     type: esp-idf
     advanced:
+      execute_from_psram: true
       enable_idf_experimental_features: true
     sdkconfig_options:
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
@@ -58,6 +60,7 @@ esp32_hosted:
 # PSRAM (External Graphics Memory)
 # -----------------------------------------------------------------------------
 psram:
+  mode: hex
   speed: 200MHz
 
 
