@@ -51,10 +51,7 @@ speaker:
     audio_dac: es8311_dac
     dac_type: external
     channel: mono
-    # 300ms (was 100ms default) to give the i2s_audio.speaker task more
-    # headroom against the "Event/record queues desynced" glitch on ESP32-P4
-    # when LVGL renders during playback.
-    buffer_duration: 300ms
+    buffer_duration: 100ms
     bits_per_sample: 16bit
     sample_rate: 48000
 
@@ -122,7 +119,6 @@ media_player:
       sources:
         - http_media_source
     on_announcement:
-      - logger.log: "MP on_announcement fired"
       - if:
           condition:
             - microphone.is_capturing:
@@ -165,10 +161,7 @@ media_player:
                     microphone.is_capturing:
                 timeout: 2s
     on_idle:
-      - logger.log: "MP on_idle fired"
-      # Give the I²S bus time to release before mic capture resumes — short
-      # delays here have caused the next announcement to silently drop on P4.
-      - delay: 1500ms
+      - delay: 500ms
       - if:
           condition:
             and:
@@ -298,24 +291,12 @@ voice_assistant:
         id: voice_overlay_state
         text: "Verarbeite…"
   on_tts_start:
-    - logger.log:
-        format: "VA on_tts_start (response: %s)"
-        args: [ 'x.c_str()' ]
-    # Stop the pulsing border BEFORE audio playback starts. The 400ms LVGL
-    # border updates compete with the i2s_audio.speaker task for CPU/IRAM
-    # and reliably trigger the "queues desynced" recovery on ESP32-P4.
-    # Border stays static, response text remains visible.
-    - globals.set:
-        id: voice_active
-        value: 'false'
     - lvgl.label.update:
         id: voice_overlay_tts
         text: !lambda 'return x;'
     - lvgl.label.update:
         id: voice_overlay_state
         text: "Antwort"
-  on_tts_end:
-    - logger.log: "VA on_tts_end (HA finished generating)"
   on_error:
     - lvgl.label.update:
         id: voice_overlay_state
