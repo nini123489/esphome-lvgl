@@ -57,7 +57,6 @@ speaker:
     buffer_duration: 200ms
     bits_per_sample: 16bit
     sample_rate: 48000
-    task_stack_in_psram: true
 
   - platform: mixer
     id: mixing_speaker
@@ -81,17 +80,13 @@ speaker:
     bits_per_sample: 16
 
 # HTTP audio sources for the speaker_source media_player below.
-# task_stack_in_psram: true puts the decoder task in PSRAM instead of IRAM —
-# saves IRAM for time-critical I²S tasks and reduces the chance of stutters.
 media_source:
   - platform: audio_http
     id: http_announcement_source
     buffer_size: 250000
-    task_stack_in_psram: true
   - platform: audio_http
     id: http_media_source
     buffer_size: 500000
-    task_stack_in_psram: true
 
 # Power amplifier enable (NS4150B). RESTORE_DEFAULT_ON so it survives reboots.
 switch:
