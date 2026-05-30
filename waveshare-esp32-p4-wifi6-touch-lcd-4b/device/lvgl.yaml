@@ -363,6 +363,57 @@ lvgl:
                 hidden: false
 
       # =========================================================================
+      # VOICE ASSISTANT OVERLAY (full-screen, top_layer)
+      # =========================================================================
+      # Shown automatically by voice_assistant events in addon/audio.yaml.
+      # Pulsing colored border driven by an interval in audio.yaml (cycles
+      # through 4 colors every 400ms while voice_active=true).
+      # Three labels: state (top), recognized text (middle), response (bottom).
+      # Clickable obj so taps don't fall through to widgets behind.
+      # =========================================================================
+      - obj:
+          id: voice_overlay
+          width: 100%
+          height: 100%
+          align: center
+          bg_color: 0x000000
+          bg_opa: 75%
+          border_width: 8
+          border_color: 0xE06A2A
+          radius: 0
+          pad_all: 32
+          hidden: true
+          clickable: true
+          widgets:
+            - label:
+                id: voice_overlay_state
+                text: "Höre zu…"
+                text_font: roboto36_font
+                text_color: 0xFFFFFF
+                align: top_mid
+                y: 60
+            - label:
+                id: voice_overlay_stt
+                text: ""
+                text_font: roboto19_font
+                text_color: 0xB0B0B0
+                align: center
+                y: -20
+                text_align: center
+                long_mode: wrap
+                width: 600px
+            - label:
+                id: voice_overlay_tts
+                text: ""
+                text_font: roboto19_font
+                text_color: 0xFFFFFF
+                align: center
+                y: 80
+                text_align: center
+                long_mode: wrap
+                width: 600px
+
+      # =========================================================================
       # NOTIFICATION PANEL (full-screen overlay, top_layer)
       # =========================================================================
       # Hidden by default. Opened by tapping the bell. Tap on the dim

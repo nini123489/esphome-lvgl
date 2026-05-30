@@ -38,6 +38,7 @@ font:
       "\U000F089E",  # mdi-battery
       "\U000F009A",  # mdi-bell
       "\U000F0156",  # mdi-close
+      "\U000F036C",  # mdi-microphone
       ]
 
 # Map icons to names
@@ -66,3 +67,4 @@ substitutions:
   vacuum:         "\U000F070D"
   bell:           "\U000F009A"
   close:          "\U000F0156"
+  microphone:     "\U000F036C"

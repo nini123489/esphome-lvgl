@@ -68,6 +68,10 @@ ota:
   - platform: esphome
 
 api:
+  # Required by Home Assistant's Voice Assistants integration.
+  # Add the key to secrets.yaml (ESPHome Dashboard can generate one).
+  encryption:
+    key: !secret api_encryption_key
   actions:
     # HA-callable: trigger an on-display notification.
     # Usage from Home Assistant:

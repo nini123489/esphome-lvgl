@@ -1,0 +1,286 @@
+# =============================================================================
+# AUDIO STACK — HA Voice Satellite
+# =============================================================================
+# Wires up the ES8311 DAC + ES7210 ADC + NS4150B amp on the Waveshare 4B board
+# to turn the device into a Home Assistant Voice Satellite.
+#
+# Hardware pinout verified via the identical ETH-variant board
+# (ESP32-P4-86-Panel-ETH-2RO). Both share the same PCB / audio subsystem.
+#
+# I2S pins:
+#   MCLK  = GPIO13
+#   BCLK  = GPIO12
+#   LRCLK = GPIO10
+#   DIN   = GPIO11  (mic in, from ES7210)
+#   DOUT  = GPIO9   (speaker out, to ES8311)
+# Power-amp enable: GPIO53 (default OFF, toggled ON only during playback).
+# Codecs are on the SHARED I2C bus (touchscreen_bus, SDA=7 SCL=8):
+#   ES8311 (DAC) @ 0x18
+#   ES7210 (ADC) @ 0x40
+# =============================================================================
+
+i2s_audio:
+  - id: audio_bus
+    i2s_mclk_pin: GPIO13
+    i2s_lrclk_pin: GPIO10
+    i2s_bclk_pin: GPIO12
+
+audio_dac:
+  - platform: es8311
+    id: es8311_dac
+    i2c_id: touchscreen_bus
+    address: 0x18
+
+audio_adc:
+  - platform: es7210
+    id: es7210_adc
+    i2c_id: touchscreen_bus
+    address: 0x40
+
+microphone:
+  - platform: i2s_audio
+    id: esp32_microphone
+    i2s_audio_id: audio_bus
+    i2s_din_pin: GPIO11
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    adc_type: external
+
+speaker:
+  - platform: i2s_audio
+    id: esp32_speaker
+    i2s_audio_id: audio_bus
+    i2s_dout_pin: GPIO9
+    audio_dac: es8311_dac
+    dac_type: external
+    channel: mono
+    buffer_duration: 100ms
+    bits_per_sample: 16bit
+    sample_rate: 48000
+
+  - platform: mixer
+    id: mixing_speaker
+    output_speaker: esp32_speaker
+    source_speakers:
+      - id: announcement_mixing_input
+        timeout: never
+      - id: media_mixing_input
+        timeout: never
+
+  - platform: resampler
+    id: announcement_resampling_speaker
+    output_speaker: announcement_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+
+  - platform: resampler
+    id: media_resampling_speaker
+    output_speaker: media_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+
+# Power amplifier enable (NS4150B). Off by default; flipped on during playback
+# to avoid idle hiss and save power.
+switch:
+  - platform: gpio
+    pin: GPIO53
+    name: "Audio Amplifier"
+    id: audio_amplifier
+    restore_mode: ALWAYS_OFF
+
+# Media player exposed to HA. Supports both announcement (TTS, voice replies)
+# and media (Spotify, radio streams, ...) pipelines via the mixer above.
+media_player:
+  - platform: speaker
+    name: "Media Player"
+    id: speaker_media_player
+    codec_support_enabled: true
+    volume_min: 0.5
+    volume_max: 0.75
+    volume_increment: 0.05
+    announcement_pipeline:
+      speaker: announcement_resampling_speaker
+      format: FLAC
+      sample_rate: 48000
+      num_channels: 1
+    media_pipeline:
+      speaker: media_resampling_speaker
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+    on_announcement:
+      - if:
+          condition:
+            - microphone.is_capturing:
+          then:
+            - micro_wake_word.stop
+            - voice_assistant.stop
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
+          duration: 0.0s
+      - switch.turn_on: audio_amplifier
+      - delay: 100ms
+    on_state:
+      if:
+        condition:
+          and:
+            - not:
+                voice_assistant.is_running:
+            - not:
+                media_player.is_announcing:
+        then:
+          - mixer_speaker.apply_ducking:
+              id: media_mixing_input
+              decibel_reduction: 0
+              duration: 1.0s
+    on_play:
+      - switch.turn_on: audio_amplifier
+      - delay: 100ms
+      - micro_wake_word.stop
+      - voice_assistant.stop
+    on_idle:
+      - delay: 100ms
+      - switch.turn_off: audio_amplifier
+      - if:
+          condition:
+            not:
+              voice_assistant.is_running:
+          then:
+            - micro_wake_word.start
+
+# Local wake-word detection. Runs entirely on-device.
+micro_wake_word:
+  id: my_wake_word
+  models:
+    - model: okay_nabu
+  on_wake_word_detected:
+    then:
+      - voice_assistant.start:
+          wake_word: !lambda return wake_word;
+
+# Globals + interval driving the pulsating border animation on voice_overlay.
+# Set by voice_assistant events; the interval reads them and steps the color.
+globals:
+  - id: voice_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: voice_pulse_step
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+interval:
+  - interval: 400ms
+    then:
+      - if:
+          condition:
+            lambda: 'return id(voice_active);'
+          then:
+            - globals.set:
+                id: voice_pulse_step
+                value: !lambda 'return (id(voice_pulse_step) + 1) % 4;'
+            - if:
+                condition:
+                  lambda: 'return id(voice_pulse_step) == 0;'
+                then:
+                  - lvgl.widget.update:
+                      id: voice_overlay
+                      border_color: 0xE06A2A
+            - if:
+                condition:
+                  lambda: 'return id(voice_pulse_step) == 1;'
+                then:
+                  - lvgl.widget.update:
+                      id: voice_overlay
+                      border_color: 0x4A90E2
+            - if:
+                condition:
+                  lambda: 'return id(voice_pulse_step) == 2;'
+                then:
+                  - lvgl.widget.update:
+                      id: voice_overlay
+                      border_color: 0x9B59B6
+            - if:
+                condition:
+                  lambda: 'return id(voice_pulse_step) == 3;'
+                then:
+                  - lvgl.widget.update:
+                      id: voice_overlay
+                      border_color: 0x2ECC71
+
+# Voice assistant: ties microphone + media_player + wake-word together,
+# and drives the on-screen overlay via lvgl actions.
+voice_assistant:
+  microphone: esp32_microphone
+  media_player: speaker_media_player
+  micro_wake_word: my_wake_word
+  noise_suppression_level: 2
+  auto_gain: 31dBFS
+  volume_multiplier: 2.0
+  conversation_timeout: 300s
+  on_listening:
+    - globals.set:
+        id: voice_active
+        value: 'true'
+    - lvgl.label.update:
+        id: voice_overlay_stt
+        text: ""
+    - lvgl.label.update:
+        id: voice_overlay_tts
+        text: ""
+    - lvgl.label.update:
+        id: voice_overlay_state
+        text: "Höre zu…"
+    - lvgl.widget.update:
+        id: voice_overlay
+        hidden: false
+  on_stt_end:
+    - lvgl.label.update:
+        id: voice_overlay_stt
+        text: !lambda 'return x;'
+    - lvgl.label.update:
+        id: voice_overlay_state
+        text: "Verarbeite…"
+  on_tts_start:
+    - lvgl.label.update:
+        id: voice_overlay_tts
+        text: !lambda 'return x;'
+    - lvgl.label.update:
+        id: voice_overlay_state
+        text: "Antwort"
+  on_error:
+    - lvgl.label.update:
+        id: voice_overlay_state
+        text: !lambda 'return "Fehler: " + message;'
+    - delay: 3s
+    - globals.set:
+        id: voice_active
+        value: 'false'
+    - lvgl.widget.update:
+        id: voice_overlay
+        hidden: true
+  on_end:
+    - wait_until:
+        condition:
+          - media_player.is_announcing:
+        timeout: 0.5s
+    - wait_until:
+        - and:
+            - not:
+                media_player.is_announcing:
+            - not:
+                media_player.is_playing:
+    - delay: 3s
+    - globals.set:
+        id: voice_active
+        value: 'false'
+    - lvgl.widget.update:
+        id: voice_overlay
+        hidden: true
+    - micro_wake_word.start:
+  on_client_connected:
+    - micro_wake_word.start:
+  on_client_disconnected:
+    - micro_wake_word.stop:

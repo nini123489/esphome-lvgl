@@ -5,6 +5,7 @@ packages:
   backlight: !include addon/backlight.yaml
   time: !include addon/time.yaml
   network: !include addon/network.yaml
+  audio: !include addon/audio.yaml
   fonts: !include assets/fonts.yaml
   icons: !include assets/icons.yaml
   button: !include theme/button.yaml
