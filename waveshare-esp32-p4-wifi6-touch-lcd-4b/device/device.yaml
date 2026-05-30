@@ -68,6 +68,22 @@ ota:
   - platform: esphome
 
 api:
+  actions:
+    # HA-callable: trigger an on-display notification.
+    # Usage from Home Assistant:
+    #   service: esphome.<device_name>_notify
+    #   data:
+    #     title: "Drucker"
+    #     message: "Druck fertig"
+    - action: notify
+      variables:
+        title: string
+        message: string
+      then:
+        - script.execute:
+            id: notif_push
+            title: !lambda 'return title;'
+            message: !lambda 'return message;'
 
 logger:
   hardware_uart: UART0

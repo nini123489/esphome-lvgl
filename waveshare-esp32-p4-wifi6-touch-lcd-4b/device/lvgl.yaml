@@ -17,6 +17,150 @@
 # - Sensors in sensors.yaml watch Home Assistant and update button states
 # =============================================================================
 
+# =============================================================================
+# NOTIFICATION CENTER — state + scripts
+# =============================================================================
+# - 6 fixed string slots (newest first, slot 0 = newest).
+# - notification_count tracks how many slots are active (0..6).
+# - HA calls api action "notify" (device.yaml) -> script notif_push.
+# - Tapping a list entry -> script notif_dismiss with the slot index.
+# - notif_render re-syncs UI: labels, hidden-flags, bell visibility,
+#   and auto-closes the panel when the list becomes empty.
+# =============================================================================
+
+globals:
+  - id: notification_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: notif_text_0
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: notif_text_1
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: notif_text_2
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: notif_text_3
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: notif_text_4
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: notif_text_5
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+
+script:
+  - id: notif_push
+    mode: queued
+    parameters:
+      title: string
+      message: string
+    then:
+      - lambda: |-
+          // Shift slot 0..4 down to 1..5, drop the oldest (was at 5).
+          id(notif_text_5) = id(notif_text_4);
+          id(notif_text_4) = id(notif_text_3);
+          id(notif_text_3) = id(notif_text_2);
+          id(notif_text_2) = id(notif_text_1);
+          id(notif_text_1) = id(notif_text_0);
+          // Compose new entry into slot 0.
+          std::string combined = title;
+          if (!message.empty()) {
+            if (!combined.empty()) combined += ": ";
+            combined += message;
+          }
+          id(notif_text_0) = combined;
+          if (id(notification_count) < 6) {
+            id(notification_count) = id(notification_count) + 1;
+          }
+      - script.execute: notif_render
+
+  - id: notif_dismiss
+    mode: queued
+    parameters:
+      index: int
+    then:
+      - lambda: |-
+          int i = index;
+          // Shift entries above the removed one up by one slot.
+          if (i <= 0) id(notif_text_0) = id(notif_text_1);
+          if (i <= 1) id(notif_text_1) = id(notif_text_2);
+          if (i <= 2) id(notif_text_2) = id(notif_text_3);
+          if (i <= 3) id(notif_text_3) = id(notif_text_4);
+          if (i <= 4) id(notif_text_4) = id(notif_text_5);
+          id(notif_text_5) = "";
+          if (id(notification_count) > 0) {
+            id(notification_count) = id(notification_count) - 1;
+          }
+      - script.execute: notif_render
+
+  - id: notif_render
+    mode: restart
+    then:
+      # Slot 0
+      - lvgl.label.update:
+          id: notif_label_0
+          text: !lambda 'return id(notif_text_0);'
+      - lvgl.widget.update:
+          id: notif_item_0
+          hidden: !lambda 'return id(notification_count) < 1;'
+      # Slot 1
+      - lvgl.label.update:
+          id: notif_label_1
+          text: !lambda 'return id(notif_text_1);'
+      - lvgl.widget.update:
+          id: notif_item_1
+          hidden: !lambda 'return id(notification_count) < 2;'
+      # Slot 2
+      - lvgl.label.update:
+          id: notif_label_2
+          text: !lambda 'return id(notif_text_2);'
+      - lvgl.widget.update:
+          id: notif_item_2
+          hidden: !lambda 'return id(notification_count) < 3;'
+      # Slot 3
+      - lvgl.label.update:
+          id: notif_label_3
+          text: !lambda 'return id(notif_text_3);'
+      - lvgl.widget.update:
+          id: notif_item_3
+          hidden: !lambda 'return id(notification_count) < 4;'
+      # Slot 4
+      - lvgl.label.update:
+          id: notif_label_4
+          text: !lambda 'return id(notif_text_4);'
+      - lvgl.widget.update:
+          id: notif_item_4
+          hidden: !lambda 'return id(notification_count) < 5;'
+      # Slot 5
+      - lvgl.label.update:
+          id: notif_label_5
+          text: !lambda 'return id(notif_text_5);'
+      - lvgl.widget.update:
+          id: notif_item_5
+          hidden: !lambda 'return id(notification_count) < 6;'
+      # Bell visibility
+      - lvgl.widget.update:
+          id: notif_bell
+          hidden: !lambda 'return id(notification_count) == 0;'
+      # Auto-close panel when nothing left
+      - if:
+          condition:
+            lambda: 'return id(notification_count) == 0;'
+          then:
+            - lvgl.widget.update:
+                id: notif_panel
+                hidden: true
+
 lvgl:
   buffer_size: 100%
   byte_order: little_endian
@@ -101,6 +245,265 @@ lvgl:
                 styles: roboto15_style
                 text_color: 0xFFFFFF
                 text: "--%"
+
+      # =========================================================================
+      # NOTIFICATION BELL (Top-right, left of battery)
+      # =========================================================================
+      # Hidden by default; appears only while there are open notifications.
+      # Tap opens the notification panel.
+      # =========================================================================
+      - label:
+          id: notif_bell
+          text_font: icon_font_small
+          text_color: 0xFFFFFF
+          text: $bell
+          align: top_right
+          x: -120
+          y: 6
+          hidden: true
+          clickable: true
+          on_click:
+            - lvgl.widget.update:
+                id: notif_panel
+                hidden: false
+
+      # =========================================================================
+      # NOTIFICATION PANEL (full-screen overlay, top_layer)
+      # =========================================================================
+      # Hidden by default. Opened by tapping the bell. Tap on the dim
+      # background closes the panel. Tap on a list entry dismisses that entry.
+      # =========================================================================
+      - obj:
+          id: notif_panel
+          width: 100%
+          height: 100%
+          align: center
+          bg_color: 0x000000
+          bg_opa: 80%
+          border_width: 0
+          pad_all: 0
+          hidden: true
+          clickable: true
+          on_click:
+            - lvgl.widget.update:
+                id: notif_panel
+                hidden: true
+          widgets:
+            - obj:
+                id: notif_panel_box
+                width: 640px
+                height: 600px
+                align: top_mid
+                y: 50
+                bg_color: 0x2A2A2A
+                bg_opa: cover
+                border_width: 2
+                border_color: 0xE06A2A
+                radius: 16
+                pad_all: 20
+                clickable: true
+                layout:
+                  type: flex
+                  flex_flow: column
+                  pad_row: 10
+                widgets:
+                  # Header row
+                  - obj:
+                      width: 100%
+                      height: SIZE_CONTENT
+                      bg_opa: TRANSP
+                      border_width: 0
+                      pad_all: 0
+                      clickable: false
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_main: space_between
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            text: "Mitteilungen"
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                        - label:
+                            text_font: icon_font_small
+                            text_color: 0xB0B0B0
+                            text: $chevron_up
+
+                  # List items (each tappable to dismiss)
+                  - obj:
+                      id: notif_item_0
+                      width: 100%
+                      height: 70px
+                      bg_color: 0x3A3A3A
+                      bg_opa: cover
+                      border_width: 0
+                      radius: 8
+                      pad_left: 16
+                      pad_right: 16
+                      pad_top: 0
+                      pad_bottom: 0
+                      hidden: true
+                      clickable: true
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            id: notif_label_0
+                            text: ""
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                      on_click:
+                        - script.execute:
+                            id: notif_dismiss
+                            index: 0
+
+                  - obj:
+                      id: notif_item_1
+                      width: 100%
+                      height: 70px
+                      bg_color: 0x3A3A3A
+                      bg_opa: cover
+                      border_width: 0
+                      radius: 8
+                      pad_left: 16
+                      pad_right: 16
+                      pad_top: 0
+                      pad_bottom: 0
+                      hidden: true
+                      clickable: true
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            id: notif_label_1
+                            text: ""
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                      on_click:
+                        - script.execute:
+                            id: notif_dismiss
+                            index: 1
+
+                  - obj:
+                      id: notif_item_2
+                      width: 100%
+                      height: 70px
+                      bg_color: 0x3A3A3A
+                      bg_opa: cover
+                      border_width: 0
+                      radius: 8
+                      pad_left: 16
+                      pad_right: 16
+                      pad_top: 0
+                      pad_bottom: 0
+                      hidden: true
+                      clickable: true
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            id: notif_label_2
+                            text: ""
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                      on_click:
+                        - script.execute:
+                            id: notif_dismiss
+                            index: 2
+
+                  - obj:
+                      id: notif_item_3
+                      width: 100%
+                      height: 70px
+                      bg_color: 0x3A3A3A
+                      bg_opa: cover
+                      border_width: 0
+                      radius: 8
+                      pad_left: 16
+                      pad_right: 16
+                      pad_top: 0
+                      pad_bottom: 0
+                      hidden: true
+                      clickable: true
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            id: notif_label_3
+                            text: ""
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                      on_click:
+                        - script.execute:
+                            id: notif_dismiss
+                            index: 3
+
+                  - obj:
+                      id: notif_item_4
+                      width: 100%
+                      height: 70px
+                      bg_color: 0x3A3A3A
+                      bg_opa: cover
+                      border_width: 0
+                      radius: 8
+                      pad_left: 16
+                      pad_right: 16
+                      pad_top: 0
+                      pad_bottom: 0
+                      hidden: true
+                      clickable: true
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            id: notif_label_4
+                            text: ""
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                      on_click:
+                        - script.execute:
+                            id: notif_dismiss
+                            index: 4
+
+                  - obj:
+                      id: notif_item_5
+                      width: 100%
+                      height: 70px
+                      bg_color: 0x3A3A3A
+                      bg_opa: cover
+                      border_width: 0
+                      radius: 8
+                      pad_left: 16
+                      pad_right: 16
+                      pad_top: 0
+                      pad_bottom: 0
+                      hidden: true
+                      clickable: true
+                      layout:
+                        type: flex
+                        flex_flow: row
+                        flex_align_cross: center
+                      widgets:
+                        - label:
+                            id: notif_label_5
+                            text: ""
+                            text_font: roboto19_font
+                            text_color: 0xFFFFFF
+                      on_click:
+                        - script.execute:
+                            id: notif_dismiss
+                            index: 5
 
   pages:
     - id: main_page
