@@ -176,13 +176,18 @@ media_player:
           then:
             - micro_wake_word.start
 
-# Local wake-word detection.
+# Local wake-word detection. probability_cutoff lowered from the model's
+# default 0.97 to 0.85 so "Okay Nabu" triggers more reliably.
 micro_wake_word:
   id: my_wake_word
   models:
     - model: okay_nabu
+      probability_cutoff: 0.85
   on_wake_word_detected:
     then:
+      - logger.log:
+          format: "Wake word detected: %s"
+          args: [ 'wake_word.c_str()' ]
       - voice_assistant.start:
           wake_word: !lambda return wake_word;
 
@@ -198,6 +203,19 @@ globals:
     initial_value: '0'
 
 interval:
+  # Watchdog: ensure the wake word listener is running. Fires soon after boot
+  # so detection works even if Home Assistant's voice-satellite client never
+  # establishes its session (on_client_connected might not fire in all setups).
+  - interval: 30s
+    then:
+      - if:
+          condition:
+            not:
+              micro_wake_word.is_running:
+          then:
+            - logger.log: "Wake word not running; (re)starting it"
+            - micro_wake_word.start:
+
   - interval: 400ms
     then:
       - if:
@@ -307,6 +325,8 @@ voice_assistant:
         hidden: true
     - micro_wake_word.start:
   on_client_connected:
+    - logger.log: "Voice assistant client connected; starting wake word"
     - micro_wake_word.start:
   on_client_disconnected:
+    - logger.log: "Voice assistant client disconnected; stopping wake word"
     - micro_wake_word.stop:
