@@ -115,6 +115,13 @@ touchscreen:
     id: my_touchscreen
     i2c_id: touchscreen_bus
     display: my_display
+    on_touch:
+      # Tap-to-wake: turning the backlight on resumes LVGL via
+      # backlight.yaml's on_turn_on. When the display is already on this is
+      # a no-op. When it was off, LVGL was paused and the touch is consumed
+      # by the wake — widgets are not triggered.
+      - light.turn_on:
+          id: backlight
 
 
 # -----------------------------------------------------------------------------

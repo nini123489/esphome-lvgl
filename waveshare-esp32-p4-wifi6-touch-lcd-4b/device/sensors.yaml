@@ -204,6 +204,16 @@ sensor:
             format: "%.0f W"
             args: [ 'x' ]
 
+  - platform: homeassistant
+    entity_id: sensor.sonnenbatterie_217105_state_battery_percentage_user
+    id: home_battery_soc
+    on_value:
+      - lvgl.label.update:
+          id: battery_percentage
+          text:
+            format: "%.0f%%"
+            args: [ 'x' ]
+
 # =============================================================================
 # TEXT SENSORS (String Values)
 # =============================================================================

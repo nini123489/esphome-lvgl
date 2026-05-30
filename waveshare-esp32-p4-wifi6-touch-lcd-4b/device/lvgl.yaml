@@ -69,6 +69,39 @@ lvgl:
           text_align: center
           text_color: 0xFFFFFF
 
+      # =========================================================================
+      # HOME BATTERY STATE OF CHARGE (Top-right corner)
+      # =========================================================================
+      # Battery icon + percentage of the home storage (Sonnenbatterie).
+      # Bound in sensors.yaml to sensor.sonnenbatterie_217105_state_battery_percentage_user.
+      # =========================================================================
+      - obj:
+          id: battery_box
+          align: top_right
+          x: -12
+          y: 6
+          width: SIZE_CONTENT
+          height: SIZE_CONTENT
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+          clickable: false
+          layout:
+            type: flex
+            flex_flow: row
+            flex_align_cross: center
+            pad_column: 4
+          widgets:
+            - label:
+                text_font: icon_font_small
+                text_color: 0xFFFFFF
+                text: $battery
+            - label:
+                id: battery_percentage
+                styles: roboto15_style
+                text_color: 0xFFFFFF
+                text: "--%"
+
   pages:
     - id: main_page
       layout:

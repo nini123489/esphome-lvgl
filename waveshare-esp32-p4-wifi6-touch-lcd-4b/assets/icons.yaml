@@ -35,6 +35,7 @@ font:
     bpp: 4
     glyphs: [
       "\U000F050F",  # mdi-thermometer
+      "\U000F089E",  # mdi-battery
       ]
 
 # Map icons to names
