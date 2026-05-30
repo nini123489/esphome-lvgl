@@ -305,6 +305,7 @@ voice_assistant:
         id: voice_overlay
         hidden: true
   on_end:
+    # Give the TTS announcement time to be queued and to start playing.
     - delay: 1s
     - wait_until:
         condition:
@@ -317,9 +318,13 @@ voice_assistant:
                   id: speaker_media_player
         timeout: 30s
     - delay: 300ms
+    # Stop the pulsing border once the answer is actually out — but leave the
+    # overlay visible (with the response text) for a few seconds so the user
+    # has time to read it.
     - globals.set:
         id: voice_active
         value: 'false'
+    - delay: 8s
     - lvgl.widget.update:
         id: voice_overlay
         hidden: true
