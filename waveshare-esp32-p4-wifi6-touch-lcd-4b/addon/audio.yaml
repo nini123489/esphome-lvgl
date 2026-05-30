@@ -307,12 +307,8 @@ voice_assistant:
     - lvgl.label.update:
         id: voice_overlay_state
         text: "Antwort"
-  on_tts_stream_start:
-    - logger.log: "VA on_tts_stream_start (audio about to play)"
-  on_tts_stream_end:
-    - logger.log: "VA on_tts_stream_end (audio finished)"
   on_tts_end:
-    - logger.log: "VA on_tts_end"
+    - logger.log: "VA on_tts_end (HA finished generating)"
   on_error:
     - lvgl.label.update:
         id: voice_overlay_state
