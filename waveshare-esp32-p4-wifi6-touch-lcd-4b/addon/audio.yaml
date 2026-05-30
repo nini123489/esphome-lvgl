@@ -203,17 +203,21 @@ globals:
     initial_value: '0'
 
 interval:
-  # Watchdog: ensure the wake word listener is running. Fires soon after boot
-  # so detection works even if Home Assistant's voice-satellite client never
-  # establishes its session (on_client_connected might not fire in all setups).
-  - interval: 30s
+  # Safety-net watchdog (5 min). Restarts wake word ONLY if it's idle AND no
+  # voice pipeline is currently running. Without the voice_assistant check,
+  # the watchdog can kick during an active conversation and cause the I2S bus
+  # to contend between mic capture and TTS playback (speaker queue desync).
+  - interval: 5min
     then:
       - if:
           condition:
-            not:
-              micro_wake_word.is_running:
+            and:
+              - not:
+                  micro_wake_word.is_running:
+              - not:
+                  voice_assistant.is_running:
           then:
-            - logger.log: "Wake word not running; (re)starting it"
+            - logger.log: "Wake word idle while no VA session; restarting"
             - micro_wake_word.start:
 
   - interval: 400ms
@@ -318,17 +322,24 @@ voice_assistant:
                   id: speaker_media_player
         timeout: 30s
     - delay: 300ms
-    # Stop the pulsing border once the answer is actually out — but leave the
-    # overlay visible (with the response text) for a few seconds so the user
-    # has time to read it.
+    # Stop the pulsing border once the answer is actually out, then restart
+    # the wake word listener immediately so the user can ask a follow-up.
     - globals.set:
         id: voice_active
         value: 'false'
-    - delay: 8s
-    - lvgl.widget.update:
-        id: voice_overlay
-        hidden: true
     - micro_wake_word.start:
+    # Leave the overlay visible for a few extra seconds so the response text
+    # stays readable. Skip the hide if a new session has started in the
+    # meantime (voice_active flipped back to true) — otherwise we'd wipe the
+    # fresh overlay of the next interaction.
+    - delay: 8s
+    - if:
+        condition:
+          lambda: 'return !id(voice_active);'
+        then:
+          - lvgl.widget.update:
+              id: voice_overlay
+              hidden: true
   on_client_connected:
     - logger.log: "Voice assistant client connected; starting wake word"
     - micro_wake_word.start:
