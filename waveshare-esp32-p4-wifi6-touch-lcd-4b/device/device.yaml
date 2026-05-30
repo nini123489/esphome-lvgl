@@ -75,15 +75,19 @@ api:
     #   data:
     #     title: "Drucker"
     #     message: "Druck fertig"
+    # expire_hours: 0 = never expire; >0 = auto-dismiss after that many hours
+    # (fractional values like 0.5 = 30 min are fine).
     - action: notify
       variables:
         title: string
         message: string
+        expire_hours: float
       then:
         - script.execute:
             id: notif_push
             title: !lambda 'return title;'
             message: !lambda 'return message;'
+            expire_hours: !lambda 'return expire_hours;'
 
 logger:
   hardware_uart: UART0

@@ -57,6 +57,31 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '""'
+  # Per-slot expire timestamps (seconds since boot, 0 = never expire).
+  - id: notif_expire_0
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: notif_expire_1
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: notif_expire_2
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: notif_expire_3
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: notif_expire_4
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: notif_expire_5
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 script:
   - id: notif_push
@@ -64,14 +89,20 @@ script:
     parameters:
       title: string
       message: string
+      expire_hours: float
     then:
       - lambda: |-
-          // Shift slot 0..4 down to 1..5, drop the oldest (was at 5).
-          id(notif_text_5) = id(notif_text_4);
-          id(notif_text_4) = id(notif_text_3);
-          id(notif_text_3) = id(notif_text_2);
-          id(notif_text_2) = id(notif_text_1);
-          id(notif_text_1) = id(notif_text_0);
+          // Shift text + expire slots 0..4 down to 1..5, oldest (was 5) is dropped.
+          id(notif_text_5)   = id(notif_text_4);
+          id(notif_expire_5) = id(notif_expire_4);
+          id(notif_text_4)   = id(notif_text_3);
+          id(notif_expire_4) = id(notif_expire_3);
+          id(notif_text_3)   = id(notif_text_2);
+          id(notif_expire_3) = id(notif_expire_2);
+          id(notif_text_2)   = id(notif_text_1);
+          id(notif_expire_2) = id(notif_expire_1);
+          id(notif_text_1)   = id(notif_text_0);
+          id(notif_expire_1) = id(notif_expire_0);
           // Compose new entry into slot 0.
           std::string combined = title;
           if (!message.empty()) {
@@ -79,10 +110,24 @@ script:
             combined += message;
           }
           id(notif_text_0) = combined;
+          // Compute expire timestamp. 0 = never expire.
+          if (expire_hours > 0.0f) {
+            uint32_t now_s = (uint32_t)(millis() / 1000ULL);
+            id(notif_expire_0) = now_s + (uint32_t)(expire_hours * 3600.0f);
+          } else {
+            id(notif_expire_0) = 0;
+          }
           if (id(notification_count) < 6) {
             id(notification_count) = id(notification_count) + 1;
           }
       - script.execute: notif_render
+      # Wake the display (no-op if already on) and pop the panel open so the
+      # user actually sees the new notification.
+      - light.turn_on:
+          id: backlight
+      - lvgl.widget.update:
+          id: notif_panel
+          hidden: false
 
   - id: notif_dismiss
     mode: queued
@@ -91,13 +136,14 @@ script:
     then:
       - lambda: |-
           int i = index;
-          // Shift entries above the removed one up by one slot.
-          if (i <= 0) id(notif_text_0) = id(notif_text_1);
-          if (i <= 1) id(notif_text_1) = id(notif_text_2);
-          if (i <= 2) id(notif_text_2) = id(notif_text_3);
-          if (i <= 3) id(notif_text_3) = id(notif_text_4);
-          if (i <= 4) id(notif_text_4) = id(notif_text_5);
+          // Shift entries below the removed one up by one slot (text + expire).
+          if (i <= 0) { id(notif_text_0) = id(notif_text_1); id(notif_expire_0) = id(notif_expire_1); }
+          if (i <= 1) { id(notif_text_1) = id(notif_text_2); id(notif_expire_1) = id(notif_expire_2); }
+          if (i <= 2) { id(notif_text_2) = id(notif_text_3); id(notif_expire_2) = id(notif_expire_3); }
+          if (i <= 3) { id(notif_text_3) = id(notif_text_4); id(notif_expire_3) = id(notif_expire_4); }
+          if (i <= 4) { id(notif_text_4) = id(notif_text_5); id(notif_expire_4) = id(notif_expire_5); }
           id(notif_text_5) = "";
+          id(notif_expire_5) = 0;
           if (id(notification_count) > 0) {
             id(notification_count) = id(notification_count) - 1;
           }
@@ -160,6 +206,55 @@ script:
             - lvgl.widget.update:
                 id: notif_panel
                 hidden: true
+
+  # Periodic check: drop slots whose expire timestamp has passed.
+  # In-place two-pointer compaction over text + expire arrays.
+  - id: notif_check_expired
+    mode: restart
+    then:
+      - lambda: |-
+          uint32_t now_s = (uint32_t)(millis() / 1000ULL);
+          std::string texts[6] = {
+            id(notif_text_0), id(notif_text_1), id(notif_text_2),
+            id(notif_text_3), id(notif_text_4), id(notif_text_5)
+          };
+          uint32_t exps[6] = {
+            id(notif_expire_0), id(notif_expire_1), id(notif_expire_2),
+            id(notif_expire_3), id(notif_expire_4), id(notif_expire_5)
+          };
+          int count = id(notification_count);
+          int write = 0;
+          bool changed = false;
+          for (int read = 0; read < count; read++) {
+            if (exps[read] == 0 || now_s < exps[read]) {
+              if (write != read) {
+                texts[write] = texts[read];
+                exps[write]  = exps[read];
+              }
+              write++;
+            } else {
+              changed = true;
+            }
+          }
+          for (int i = write; i < 6; i++) {
+            texts[i] = "";
+            exps[i]  = 0;
+          }
+          if (changed) {
+            id(notif_text_0)   = texts[0]; id(notif_expire_0) = exps[0];
+            id(notif_text_1)   = texts[1]; id(notif_expire_1) = exps[1];
+            id(notif_text_2)   = texts[2]; id(notif_expire_2) = exps[2];
+            id(notif_text_3)   = texts[3]; id(notif_expire_3) = exps[3];
+            id(notif_text_4)   = texts[4]; id(notif_expire_4) = exps[4];
+            id(notif_text_5)   = texts[5]; id(notif_expire_5) = exps[5];
+            id(notification_count) = write;
+            id(notif_render).execute();
+          }
+
+interval:
+  - interval: 30s
+    then:
+      - script.execute: notif_check_expired
 
 lvgl:
   buffer_size: 100%
@@ -328,7 +423,12 @@ lvgl:
                         - label:
                             text_font: icon_font_small
                             text_color: 0xB0B0B0
-                            text: $chevron_up
+                            text: $close
+                            clickable: true
+                            on_click:
+                              - lvgl.widget.update:
+                                  id: notif_panel
+                                  hidden: true
 
                   # List items (each tappable to dismiss)
                   - obj:

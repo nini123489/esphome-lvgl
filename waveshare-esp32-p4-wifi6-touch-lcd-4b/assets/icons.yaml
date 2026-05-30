@@ -37,6 +37,7 @@ font:
       "\U000F050F",  # mdi-thermometer
       "\U000F089E",  # mdi-battery
       "\U000F009A",  # mdi-bell
+      "\U000F0156",  # mdi-close
       ]
 
 # Map icons to names
@@ -64,3 +65,4 @@ substitutions:
   thermometer:    "\U000F050F"
   vacuum:         "\U000F070D"
   bell:           "\U000F009A"
+  close:          "\U000F0156"
