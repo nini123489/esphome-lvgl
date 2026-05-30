@@ -1,23 +1,20 @@
 # =============================================================================
 # AUDIO STACK — HA Voice Satellite
 # =============================================================================
-# Wires up the ES8311 DAC + ES7210 ADC + NS4150B amp on the Waveshare 4B board
-# to turn the device into a Home Assistant Voice Satellite.
+# Requires ESPHome 2026.5.0+ (uses media_source / speaker_source / audio_http).
 #
-# Hardware pinout verified via the identical ETH-variant board
-# (ESP32-P4-86-Panel-ETH-2RO). Both share the same PCB / audio subsystem.
+# Hardware pinout verified against agillis/esphome-modular-lvgl-buttons
+# (waveshare-esp32-p4-wifi6-touch-lcd-4b.yaml).
 #
-# I2S pins:
-#   MCLK  = GPIO13
-#   BCLK  = GPIO12
-#   LRCLK = GPIO10
-#   DIN   = GPIO11  (mic in, from ES7210)
-#   DOUT  = GPIO9   (speaker out, to ES8311)
-# Power-amp enable: GPIO53 (default OFF, toggled ON only during playback).
-# Codecs are on the SHARED I2C bus (touchscreen_bus, SDA=7 SCL=8):
-#   ES8311 (DAC) @ 0x18
-#   ES7210 (ADC) @ 0x40
+# I2S:
+#   MCLK=GPIO13  BCLK=GPIO12  LRCLK=GPIO10  DIN=GPIO11  DOUT=GPIO9
+# Codecs on shared I2C (touchscreen_bus, SDA=7 SCL=8):
+#   ES8311 (DAC) @ 0x18  |  ES7210 (ADC) @ 0x40
+# Power-amp enable: GPIO53
 # =============================================================================
+
+# Needed by media_source audio_http to fetch streams/TTS over HTTP(S).
+http_request:
 
 i2s_audio:
   - id: audio_bus
@@ -79,35 +76,48 @@ speaker:
     sample_rate: 48000
     bits_per_sample: 16
 
-# Power amplifier enable (NS4150B). Off by default; flipped on during playback
-# to avoid idle hiss and save power.
+# HTTP audio sources for the speaker_source media_player below.
+media_source:
+  - platform: audio_http
+    id: http_announcement_source
+    buffer_size: 250000
+  - platform: audio_http
+    id: http_media_source
+    buffer_size: 500000
+
+# Power amplifier enable (NS4150B). RESTORE_DEFAULT_ON so it survives reboots.
 switch:
   - platform: gpio
     pin: GPIO53
-    name: "Audio Amplifier"
+    name: "Speaker Enable"
+    icon: "mdi:speaker"
+    entity_category: config
     id: audio_amplifier
-    restore_mode: ALWAYS_OFF
+    restore_mode: RESTORE_DEFAULT_ON
 
-# Media player exposed to HA. Supports both announcement (TTS, voice replies)
-# and media (Spotify, radio streams, ...) pipelines via the mixer above.
+# Modern HA-visible media_player. Using speaker_source platform (ESPHome
+# 2026.5+) so it shows up correctly in Home Assistant.
 media_player:
-  - platform: speaker
+  - platform: speaker_source
     name: "Media Player"
     id: speaker_media_player
-    codec_support_enabled: true
+    volume_increment: 0.05
     volume_min: 0.5
     volume_max: 0.75
-    volume_increment: 0.05
     announcement_pipeline:
       speaker: announcement_resampling_speaker
       format: FLAC
       sample_rate: 48000
       num_channels: 1
+      sources:
+        - http_announcement_source
     media_pipeline:
       speaker: media_resampling_speaker
       format: FLAC
-      num_channels: 1
       sample_rate: 48000
+      num_channels: 1
+      sources:
+        - http_media_source
     on_announcement:
       - if:
           condition:
@@ -115,12 +125,15 @@ media_player:
           then:
             - micro_wake_word.stop
             - voice_assistant.stop
+            - wait_until:
+                condition:
+                  not:
+                    microphone.is_capturing:
+                timeout: 2s
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
           decibel_reduction: 20
           duration: 0.0s
-      - switch.turn_on: audio_amplifier
-      - delay: 100ms
     on_state:
       if:
         condition:
@@ -129,27 +142,41 @@ media_player:
                 voice_assistant.is_running:
             - not:
                 media_player.is_announcing:
+                  id: speaker_media_player
         then:
           - mixer_speaker.apply_ducking:
               id: media_mixing_input
               decibel_reduction: 0
               duration: 1.0s
     on_play:
-      - switch.turn_on: audio_amplifier
-      - delay: 100ms
-      - micro_wake_word.stop
-      - voice_assistant.stop
-    on_idle:
-      - delay: 100ms
-      - switch.turn_off: audio_amplifier
       - if:
           condition:
-            not:
-              voice_assistant.is_running:
+            - microphone.is_capturing:
+          then:
+            - micro_wake_word.stop
+            - voice_assistant.stop
+            - wait_until:
+                condition:
+                  not:
+                    microphone.is_capturing:
+                timeout: 2s
+    on_idle:
+      - delay: 500ms
+      - if:
+          condition:
+            and:
+              - not:
+                  voice_assistant.is_running:
+              - not:
+                  media_player.is_playing:
+                    id: speaker_media_player
+              - not:
+                  media_player.is_announcing:
+                    id: speaker_media_player
           then:
             - micro_wake_word.start
 
-# Local wake-word detection. Runs entirely on-device.
+# Local wake-word detection.
 micro_wake_word:
   id: my_wake_word
   models:
@@ -159,8 +186,7 @@ micro_wake_word:
       - voice_assistant.start:
           wake_word: !lambda return wake_word;
 
-# Globals + interval driving the pulsating border animation on voice_overlay.
-# Set by voice_assistant events; the interval reads them and steps the color.
+# Pulsating border animation: cycles 4 colors while voice_active=true.
 globals:
   - id: voice_active
     type: bool
@@ -210,8 +236,7 @@ interval:
                       id: voice_overlay
                       border_color: 0x2ECC71
 
-# Voice assistant: ties microphone + media_player + wake-word together,
-# and drives the on-screen overlay via lvgl actions.
+# Voice assistant: ties everything together and drives the LVGL overlay.
 voice_assistant:
   microphone: esp32_microphone
   media_player: speaker_media_player
@@ -262,17 +287,18 @@ voice_assistant:
         id: voice_overlay
         hidden: true
   on_end:
+    - delay: 1s
     - wait_until:
         condition:
-          - media_player.is_announcing:
-        timeout: 0.5s
-    - wait_until:
-        - and:
+          and:
             - not:
                 media_player.is_announcing:
+                  id: speaker_media_player
             - not:
                 media_player.is_playing:
-    - delay: 3s
+                  id: speaker_media_player
+        timeout: 30s
+    - delay: 300ms
     - globals.set:
         id: voice_active
         value: 'false'
