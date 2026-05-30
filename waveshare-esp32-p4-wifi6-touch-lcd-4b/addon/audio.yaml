@@ -51,7 +51,10 @@ speaker:
     audio_dac: es8311_dac
     dac_type: external
     channel: mono
-    buffer_duration: 100ms
+    # Doubled (was 100ms) to give the i2s_audio.speaker task more headroom
+    # against the "Event/record queues desynced" recovery glitch seen on
+    # ESP32-P4 when LVGL renders during playback.
+    buffer_duration: 200ms
     bits_per_sample: 16bit
     sample_rate: 48000
 
@@ -119,6 +122,7 @@ media_player:
       sources:
         - http_media_source
     on_announcement:
+      - logger.log: "MP on_announcement fired"
       - if:
           condition:
             - microphone.is_capturing:
@@ -161,7 +165,10 @@ media_player:
                     microphone.is_capturing:
                 timeout: 2s
     on_idle:
-      - delay: 500ms
+      - logger.log: "MP on_idle fired"
+      # Give the I²S bus time to release before mic capture resumes — short
+      # delays here have caused the next announcement to silently drop on P4.
+      - delay: 1500ms
       - if:
           condition:
             and:
@@ -291,12 +298,21 @@ voice_assistant:
         id: voice_overlay_state
         text: "Verarbeite…"
   on_tts_start:
+    - logger.log:
+        format: "VA on_tts_start (response: %s)"
+        args: [ 'x.c_str()' ]
     - lvgl.label.update:
         id: voice_overlay_tts
         text: !lambda 'return x;'
     - lvgl.label.update:
         id: voice_overlay_state
         text: "Antwort"
+  on_tts_stream_start:
+    - logger.log: "VA on_tts_stream_start (audio about to play)"
+  on_tts_stream_end:
+    - logger.log: "VA on_tts_stream_end (audio finished)"
+  on_tts_end:
+    - logger.log: "VA on_tts_end"
   on_error:
     - lvgl.label.update:
         id: voice_overlay_state
