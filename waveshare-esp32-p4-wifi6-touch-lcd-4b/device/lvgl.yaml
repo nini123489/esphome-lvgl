@@ -824,34 +824,33 @@ lvgl:
                   pad_all: 0
                   scrollbar_mode: "off"
                   clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: column
-                    flex_align_main: center
-                    flex_align_cross: center
-                    pad_row: 6
                   widgets:
                     - label:
                         id: greeting_wx_time_0
+                        align: top_mid
+                        y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
                         id: greeting_wx_icon_0
+                        align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
                         id: greeting_wx_temp_0
+                        align: bottom_mid
+                        y: -20
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
 
               # Divider 0/1
               - obj:
-                  width: 2
+                  width: 4
                   height: 140
-                  bg_color: 0x404040
+                  bg_color: 0x707070
                   bg_opa: cover
                   border_width: 0
                   border_opa: TRANSP
@@ -869,34 +868,33 @@ lvgl:
                   pad_all: 0
                   scrollbar_mode: "off"
                   clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: column
-                    flex_align_main: center
-                    flex_align_cross: center
-                    pad_row: 6
                   widgets:
                     - label:
                         id: greeting_wx_time_1
+                        align: top_mid
+                        y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
                         id: greeting_wx_icon_1
+                        align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
                         id: greeting_wx_temp_1
+                        align: bottom_mid
+                        y: -20
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
 
               # Divider 1/2
               - obj:
-                  width: 2
+                  width: 4
                   height: 140
-                  bg_color: 0x404040
+                  bg_color: 0x707070
                   bg_opa: cover
                   border_width: 0
                   border_opa: TRANSP
@@ -914,34 +912,33 @@ lvgl:
                   pad_all: 0
                   scrollbar_mode: "off"
                   clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: column
-                    flex_align_main: center
-                    flex_align_cross: center
-                    pad_row: 6
                   widgets:
                     - label:
                         id: greeting_wx_time_2
+                        align: top_mid
+                        y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
                         id: greeting_wx_icon_2
+                        align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
                         id: greeting_wx_temp_2
+                        align: bottom_mid
+                        y: -20
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
 
               # Divider 2/3
               - obj:
-                  width: 2
+                  width: 4
                   height: 140
-                  bg_color: 0x404040
+                  bg_color: 0x707070
                   bg_opa: cover
                   border_width: 0
                   border_opa: TRANSP
@@ -959,25 +956,24 @@ lvgl:
                   pad_all: 0
                   scrollbar_mode: "off"
                   clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: column
-                    flex_align_main: center
-                    flex_align_cross: center
-                    pad_row: 6
                   widgets:
                     - label:
                         id: greeting_wx_time_3
+                        align: top_mid
+                        y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
                         id: greeting_wx_icon_3
+                        align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
                         id: greeting_wx_temp_3
+                        align: bottom_mid
+                        y: -20
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
