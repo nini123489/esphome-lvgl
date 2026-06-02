@@ -105,7 +105,9 @@ script:
   # the matching LVGL page, while keeping the "Aktive Seite" select in sync via
   # publish_state (avoids triggering the on_value callback again).
   - id: nav_to_page
-    mode: restart
+    # single = ignore concurrent calls; prevents recursion via the
+    # active_page_select on_value callback (which also calls this script).
+    mode: single
     parameters:
       page: string
     then:
@@ -784,7 +786,7 @@ lvgl:
             id: greeting_date_label
             align: top_mid
             y: 280
-            text: "—"
+            text: "-"
             text_font: roboto19_font
             text_color: 0xB0B0B0
 

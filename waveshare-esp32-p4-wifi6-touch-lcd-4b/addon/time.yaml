@@ -18,53 +18,59 @@ time:
 # Clock + greeting page updates
 # time_update runs on SNTP sync, every minute at :00, and whenever the
 # greeter_name text entity changes (via on_value in ha_controls.yaml).
+# All actions are gated behind sntp_time.now().is_valid() so this script is
+# safe to call before the clock has synced (returns silently).
 script:
   - id: time_update
     then:
-      # Main-page status-bar clock (HH:MM)
-      - lvgl.label.update:
-          id: display_time
-          text: !lambda |-
-            static char time_buf[17];
-            auto now = id(sntp_time).now();
-            snprintf(time_buf, sizeof(time_buf), "%02d:%02d", now.hour, now.minute);
-            return time_buf;
-      # Greeting page large clock (same value, separate label)
-      - lvgl.label.update:
-          id: greeting_clock_label
-          text: !lambda |-
-            static char buf[8];
-            auto now = id(sntp_time).now();
-            snprintf(buf, sizeof(buf), "%02d:%02d", now.hour, now.minute);
-            return std::string(buf);
-      # Greeting page date — "Mittwoch, 5. Juni"
-      - lvgl.label.update:
-          id: greeting_date_label
-          text: !lambda |-
-            static const char* WD[] = {"", "Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"};
-            static const char* MO[] = {"", "Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"};
-            auto now = id(sntp_time).now();
-            int dow = now.day_of_week;
-            int mo  = now.month;
-            if (dow < 1 || dow > 7) dow = 0;
-            if (mo  < 1 || mo  > 12) mo  = 0;
-            char buf[64];
-            snprintf(buf, sizeof(buf), "%s, %d. %s", WD[dow], now.day_of_month, MO[mo]);
-            return std::string(buf);
-      # Greeting message — time-of-day word + optional name
-      - lvgl.label.update:
-          id: greeting_message_label
-          text: !lambda |-
-            auto now = id(sntp_time).now();
-            const char* g;
-            if      (now.hour >= 5  && now.hour < 12) g = "Guten Morgen";
-            else if (now.hour >= 12 && now.hour < 18) g = "Hallo";
-            else if (now.hour >= 18 && now.hour < 23) g = "Guten Abend";
-            else                                       g = "Gute Nacht";
-            std::string msg = g;
-            std::string name = id(greeter_name).state;
-            if (!name.empty()) {
-              msg += ", ";
-              msg += name;
-            }
-            return msg;
+      - if:
+          condition:
+            lambda: 'return id(sntp_time).now().is_valid();'
+          then:
+            # Main-page status-bar clock (HH:MM)
+            - lvgl.label.update:
+                id: display_time
+                text: !lambda |-
+                  static char time_buf[17];
+                  auto now = id(sntp_time).now();
+                  snprintf(time_buf, sizeof(time_buf), "%02d:%02d", now.hour, now.minute);
+                  return time_buf;
+            # Greeting page large clock (same value, separate label)
+            - lvgl.label.update:
+                id: greeting_clock_label
+                text: !lambda |-
+                  static char buf[8];
+                  auto now = id(sntp_time).now();
+                  snprintf(buf, sizeof(buf), "%02d:%02d", now.hour, now.minute);
+                  return std::string(buf);
+            # Greeting page date — "Mittwoch, 5. Juni"
+            - lvgl.label.update:
+                id: greeting_date_label
+                text: !lambda |-
+                  static const char* WD[] = {"", "Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"};
+                  static const char* MO[] = {"", "Januar","Februar","Maerz","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"};
+                  auto now = id(sntp_time).now();
+                  int dow = now.day_of_week;
+                  int mo  = now.month;
+                  if (dow < 1 || dow > 7) dow = 0;
+                  if (mo  < 1 || mo  > 12) mo  = 0;
+                  char buf[64];
+                  snprintf(buf, sizeof(buf), "%s, %d. %s", WD[dow], now.day_of_month, MO[mo]);
+                  return std::string(buf);
+            # Greeting message — time-of-day word + optional name
+            - lvgl.label.update:
+                id: greeting_message_label
+                text: !lambda |-
+                  auto now = id(sntp_time).now();
+                  const char* g;
+                  if      (now.hour >= 5  && now.hour < 12) g = "Guten Morgen";
+                  else if (now.hour >= 12 && now.hour < 18) g = "Hallo";
+                  else if (now.hour >= 18 && now.hour < 23) g = "Guten Abend";
+                  else                                       g = "Gute Nacht";
+                  std::string msg = g;
+                  std::string name = id(greeter_name).state;
+                  if (!name.empty()) {
+                    msg += ", ";
+                    msg += name;
+                  }
+                  return msg;
