@@ -799,7 +799,9 @@ lvgl:
             height: 300
             bg_opa: TRANSP
             border_width: 0
+            border_opa: TRANSP
             pad_all: 0
+            scrollbar_mode: "off"
             clickable: false
             layout:
               type: grid
@@ -813,6 +815,7 @@ lvgl:
                   grid_cell_row_pos: 0
                   bg_opa: TRANSP
                   border_width: 0
+                  border_opa: TRANSP
                   pad_all: 0
                   clickable: false
                   layout:
@@ -843,6 +846,7 @@ lvgl:
                   grid_cell_row_pos: 0
                   bg_opa: TRANSP
                   border_width: 0
+                  border_opa: TRANSP
                   pad_all: 0
                   clickable: false
                   layout:
@@ -873,6 +877,7 @@ lvgl:
                   grid_cell_row_pos: 0
                   bg_opa: TRANSP
                   border_width: 0
+                  border_opa: TRANSP
                   pad_all: 0
                   clickable: false
                   layout:
@@ -903,6 +908,7 @@ lvgl:
                   grid_cell_row_pos: 0
                   bg_opa: TRANSP
                   border_width: 0
+                  border_opa: TRANSP
                   pad_all: 0
                   clickable: false
                   layout:
