@@ -816,7 +816,7 @@ lvgl:
             widgets:
               # Slot 0
               - obj:
-                  width: 22%
+                  flex_grow: 1
                   height: 100%
                   bg_opa: TRANSP
                   border_width: 0
@@ -861,7 +861,7 @@ lvgl:
 
               # Slot 1
               - obj:
-                  width: 22%
+                  flex_grow: 1
                   height: 100%
                   bg_opa: TRANSP
                   border_width: 0
@@ -906,7 +906,7 @@ lvgl:
 
               # Slot 2
               - obj:
-                  width: 22%
+                  flex_grow: 1
                   height: 100%
                   bg_opa: TRANSP
                   border_width: 0
@@ -951,7 +951,7 @@ lvgl:
 
               # Slot 3
               - obj:
-                  width: 22%
+                  flex_grow: 1
                   height: 100%
                   bg_opa: TRANSP
                   border_width: 0
