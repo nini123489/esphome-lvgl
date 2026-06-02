@@ -1,0 +1,87 @@
+# =============================================================================
+# HOME ASSISTANT CONTROLS — exposed entities
+# =============================================================================
+# Entities this device publishes to HA so users can remote-control the display
+# and the auto-revert behavior:
+#   Select  "Aktive Seite"        -> jumps the display to the chosen page now
+#   Select  "Default-Seite"       -> page used on boot, idle revert, display-off revert
+#   Switch  "Revert bei Idle"     -> enables the idle timer (interval lives in lvgl.yaml)
+#   Switch  "Revert bei Display aus" -> enables revert when backlight goes off
+#   Number  "Idle-Zeit (min)"     -> threshold for the idle revert
+#   Text    "Begrüßung Name"      -> name shown on the greeting page greeting line
+#
+# All controls use restore_value/restore_mode so the user's last setting survives
+# reboot. The two selects share the same options list, kept in sync manually.
+# =============================================================================
+
+select:
+  - platform: template
+    name: "Aktive Seite"
+    id: active_page_select
+    options:
+      - "Begrüßung"
+      - "Übersicht"
+      - "Szenen"
+      - "Heizung"
+      - "Drucker"
+      - "Staubi-Saugi"
+    initial_option: "Übersicht"
+    optimistic: true
+    restore_value: false
+    on_value:
+      - script.execute:
+          id: nav_to_page
+          page: !lambda 'return x;'
+
+  - platform: template
+    name: "Default-Seite"
+    id: default_page_select
+    options:
+      - "Begrüßung"
+      - "Übersicht"
+      - "Szenen"
+      - "Heizung"
+      - "Drucker"
+      - "Staubi-Saugi"
+    initial_option: "Begrüßung"
+    optimistic: true
+    restore_value: true
+
+switch:
+  - platform: template
+    name: "Revert bei Idle"
+    id: idle_revert_enabled
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+
+  - platform: template
+    name: "Revert bei Display aus"
+    id: display_off_revert_enabled
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+
+number:
+  - platform: template
+    name: "Idle-Zeit (min)"
+    id: idle_timeout_minutes
+    min_value: 0.5
+    max_value: 60
+    step: 0.5
+    initial_value: 2
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "min"
+    mode: box
+
+text:
+  - platform: template
+    name: "Begrüßung Name"
+    id: greeter_name
+    initial_value: "Nicklas"
+    min_length: 0
+    max_length: 32
+    optimistic: true
+    restore_value: true
+    mode: text
+    on_value:
+      - script.execute: time_update

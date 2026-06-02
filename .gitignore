@@ -1,0 +1,30 @@
+# ESPHome build artifacts
+.esphome/
+build/
+*.bin
+*.elf
+*.map
+
+# Secrets — never commit credentials / Wi-Fi passwords
+secrets.yaml
+secrets.*.yaml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+.cache/

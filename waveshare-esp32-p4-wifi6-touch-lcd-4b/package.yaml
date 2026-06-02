@@ -1,0 +1,12 @@
+packages:
+  device: !include device/device.yaml
+  sensors: !include device/sensors.yaml
+  lvgl: !include device/lvgl.yaml
+  backlight: !include addon/backlight.yaml
+  time: !include addon/time.yaml
+  network: !include addon/network.yaml
+  audio: !include addon/audio.yaml
+  ha_controls: !include addon/ha_controls.yaml
+  fonts: !include assets/fonts.yaml
+  icons: !include assets/icons.yaml
+  button: !include theme/button.yaml

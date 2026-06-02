@@ -1,0 +1,18 @@
+# Waveshare ESP32-P4-WIFI6-Touch-LCD-4B
+substitutions:
+  name: "your-device-name"
+  friendly_name: "Your Room Sensor"
+  room: "Your Room"
+
+# Wifi Setup
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+# Packages
+packages:
+  setup:
+    url: https://github.com/jtenniswood/esphome-lvgl/
+    file: waveshare-esp32-p4-wifi6-touch-lcd-4b/package.yaml
+    refresh: 1sec
