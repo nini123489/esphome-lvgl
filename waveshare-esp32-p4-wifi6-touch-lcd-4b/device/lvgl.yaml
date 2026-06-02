@@ -790,13 +790,18 @@ lvgl:
             text_font: roboto17_font
             text_color: 0xB0B0B0
 
-        # Hourly forecast row — 4 cells (time / icon / temp)
+        # Hourly forecast row — 4 cells (time / icon / temp) separated by
+        # 3 explicit vertical divider objs. Layout is flex (not grid) so the
+        # dividers can be interleaved as siblings between the slots without
+        # showing up as a stray bar after the last slot. scrollbar_mode is
+        # forced off on every obj so LVGL's default scroll indicator doesn't
+        # leave a thin line at the right edge of each child.
         - obj:
             id: greeting_forecast
             align: bottom_mid
             y: -100
             width: 90%
-            height: 300
+            height: 240
             bg_opa: TRANSP
             border_width: 0
             border_opa: TRANSP
@@ -804,19 +809,20 @@ lvgl:
             scrollbar_mode: "off"
             clickable: false
             layout:
-              type: grid
-              grid_columns: [fr(1), fr(1), fr(1), fr(1)]
-              grid_rows: [fr(1)]
-              pad_column: 14
+              type: flex
+              flex_flow: row
+              flex_align_main: space_evenly
+              flex_align_cross: center
             widgets:
               # Slot 0
               - obj:
-                  grid_cell_column_pos: 0
-                  grid_cell_row_pos: 0
+                  width: 22%
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   border_opa: TRANSP
                   pad_all: 0
+                  scrollbar_mode: "off"
                   clickable: false
                   layout:
                     type: flex
@@ -840,14 +846,28 @@ lvgl:
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
+
+              # Divider 0/1
+              - obj:
+                  width: 2
+                  height: 140
+                  bg_color: 0x404040
+                  bg_opa: cover
+                  border_width: 0
+                  border_opa: TRANSP
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+
               # Slot 1
               - obj:
-                  grid_cell_column_pos: 1
-                  grid_cell_row_pos: 0
+                  width: 22%
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   border_opa: TRANSP
                   pad_all: 0
+                  scrollbar_mode: "off"
                   clickable: false
                   layout:
                     type: flex
@@ -871,14 +891,28 @@ lvgl:
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
+
+              # Divider 1/2
+              - obj:
+                  width: 2
+                  height: 140
+                  bg_color: 0x404040
+                  bg_opa: cover
+                  border_width: 0
+                  border_opa: TRANSP
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+
               # Slot 2
               - obj:
-                  grid_cell_column_pos: 2
-                  grid_cell_row_pos: 0
+                  width: 22%
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   border_opa: TRANSP
                   pad_all: 0
+                  scrollbar_mode: "off"
                   clickable: false
                   layout:
                     type: flex
@@ -902,14 +936,28 @@ lvgl:
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
+
+              # Divider 2/3
+              - obj:
+                  width: 2
+                  height: 140
+                  bg_color: 0x404040
+                  bg_opa: cover
+                  border_width: 0
+                  border_opa: TRANSP
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+
               # Slot 3
               - obj:
-                  grid_cell_column_pos: 3
-                  grid_cell_row_pos: 0
+                  width: 22%
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   border_opa: TRANSP
                   pad_all: 0
+                  scrollbar_mode: "off"
                   clickable: false
                   layout:
                     type: flex
