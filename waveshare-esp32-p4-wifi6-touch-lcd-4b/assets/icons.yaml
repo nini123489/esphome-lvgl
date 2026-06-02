@@ -41,7 +41,7 @@ font:
       "\U000F0591",  # mdi-weather-fog
       "\U000F0592",  # mdi-weather-hail
       "\U000F059D",  # mdi-weather-windy
-      "\U000F0A1C",  # mdi-view-dashboard
+      "\U000F0208",  # mdi-view-dashboard
       ]
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_small
@@ -63,7 +63,7 @@ font:
       "\U000F0734",  # mdi-arrow-right-bold
       "\U000F04E1",  # mdi-swap-horizontal
       "\U000F0425",  # mdi-power
-      "\U000F0A1C",  # mdi-view-dashboard
+      "\U000F0208",  # mdi-view-dashboard
       ]
 
 # Map icons to names
@@ -115,4 +115,4 @@ substitutions:
   wx_fog:             "\U000F0591"
   wx_hail:            "\U000F0592"
   wx_windy:           "\U000F059D"
-  view_dashboard:     "\U000F0A1C"
+  view_dashboard:     "\U000F0208"

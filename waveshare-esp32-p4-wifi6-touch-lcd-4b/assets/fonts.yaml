@@ -30,6 +30,12 @@ font:
     glyphs: *latin_glyphs
 
   - file: "gfonts://Roboto"
+    id: roboto88_font
+    size: 132
+    bpp: 4
+    glyphs: *latin_glyphs
+
+  - file: "gfonts://Roboto"
     id: roboto44_font
     size: 66
     bpp: 4

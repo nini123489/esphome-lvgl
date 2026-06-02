@@ -767,36 +767,36 @@ lvgl:
         - label:
             id: greeting_clock_label
             align: top_mid
-            y: 30
+            y: 20
             text: "--:--"
-            text_font: roboto72_font
+            text_font: roboto88_font
             text_color: 0xFFFFFF
 
         # Greeting line — "Guten Morgen, Nicklas"
         - label:
             id: greeting_message_label
             align: top_mid
-            y: 200
+            y: 180
             text: "Hallo"
-            text_font: roboto36_font
+            text_font: roboto19_font
             text_color: 0xFFFFFF
 
         # Date line — "Mittwoch, 5. Juni"
         - label:
             id: greeting_date_label
             align: top_mid
-            y: 280
+            y: 215
             text: "-"
-            text_font: roboto19_font
+            text_font: roboto17_font
             text_color: 0xB0B0B0
 
         # Hourly forecast row — 4 cells (time / icon / temp)
         - obj:
             id: greeting_forecast
             align: bottom_mid
-            y: -110
+            y: -100
             width: 90%
-            height: 220
+            height: 300
             bg_opa: TRANSP
             border_width: 0
             pad_all: 0
@@ -835,7 +835,7 @@ lvgl:
                     - label:
                         id: greeting_wx_temp_0
                         text: "--°"
-                        text_font: roboto36_font
+                        text_font: roboto19_font
                         text_color: 0xFFFFFF
               # Slot 1
               - obj:
@@ -865,7 +865,7 @@ lvgl:
                     - label:
                         id: greeting_wx_temp_1
                         text: "--°"
-                        text_font: roboto36_font
+                        text_font: roboto19_font
                         text_color: 0xFFFFFF
               # Slot 2
               - obj:
@@ -895,7 +895,7 @@ lvgl:
                     - label:
                         id: greeting_wx_temp_2
                         text: "--°"
-                        text_font: roboto36_font
+                        text_font: roboto19_font
                         text_color: 0xFFFFFF
               # Slot 3
               - obj:
@@ -925,7 +925,7 @@ lvgl:
                     - label:
                         id: greeting_wx_temp_3
                         text: "--°"
-                        text_font: roboto36_font
+                        text_font: roboto19_font
                         text_color: 0xFFFFFF
 
         # Bottom-right: navigation to dashboard
