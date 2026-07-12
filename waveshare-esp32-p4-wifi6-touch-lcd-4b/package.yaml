@@ -5,7 +5,6 @@ packages:
   backlight: !include addon/backlight.yaml
   time: !include addon/time.yaml
   network: !include addon/network.yaml
-  bluetooth_proxy: !include addon/bluetooth_proxy.yaml
   audio: !include addon/audio.yaml
   ha_controls: !include addon/ha_controls.yaml
   fonts: !include assets/fonts.yaml
