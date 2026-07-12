@@ -1012,8 +1012,10 @@ lvgl:
     - id: main_page
       layout:
         type: grid
-        grid_columns: [fr(1), fr(1), fr(1)]
-        grid_rows: [fr(1), fr(1), fr(1)]
+        grid_columns: [fr(1), fr(1), fr(1), fr(1)]
+        grid_rows: [fr(1), fr(1), fr(1), fr(1)]
+        pad_row: 8
+        pad_column: 8
       scrollbar_mode: "off"
       scroll_dir: "hor"
       width: 100%
@@ -1030,12 +1032,12 @@ lvgl:
         # BUTTON: Scenes (opens scene selector page)
         # =========================================================================
         - button:
-            height: $button_height_single
-            width: $button_width
             id: scenes_button
             styles: control
             grid_cell_column_pos: 0
             grid_cell_row_pos: 0
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
             widgets:
               - label:
                   text_font: $icon_font
@@ -1062,12 +1064,12 @@ lvgl:
         #   When the switch is OFF, this button appears unchecked (dimmed)
         # =========================================================================
         - button:
-            height: $button_height_single
-            width: $button_width
             id: printer_power_button
             styles: control
             grid_cell_column_pos: 2
             grid_cell_row_pos: 0
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
             widgets:
               # Icon (shown when OFF)
               - label:
@@ -1120,14 +1122,14 @@ lvgl:
         # =========================================================================
         - obj:
             id: heating_main_card
-            width: $button_width
-            height: $button_height_single
             grid_cell_column_pos: 1
             grid_cell_row_pos: 0
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
             bg_color: $button_control_color
             radius: $radius
             border_width: 0
-            pad_all: 14
+            pad_all: 8
             clickable: false
             layout:
               type: flex
@@ -1172,8 +1174,8 @@ lvgl:
                               text_color: 0xFFFFFF
                     - button:
                         id: heating_main_power_button
-                        width: 50
-                        height: 32
+                        width: 44
+                        height: 26
                         bg_color: 0x3A3A3A
                         radius: 6
                         pad_all: 0
@@ -1212,7 +1214,7 @@ lvgl:
                     - label:
                         id: heating_main_target_label
                         text: "--.-°"
-                        text_font: roboto36_font
+                        text_font: roboto28_font
                         text_color: 0xFFFFFF
                     - label:
                         id: heating_main_current_label
@@ -1236,8 +1238,8 @@ lvgl:
                   widgets:
                     - button:
                         id: heating_main_down_button
-                        width: 70
-                        height: 44
+                        width: 66
+                        height: 34
                         bg_color: 0x3A3A3A
                         radius: 8
                         pad_all: 0
@@ -1245,7 +1247,7 @@ lvgl:
                           - label:
                               align: center
                               text: "-"
-                              text_font: roboto36_font
+                              text_font: roboto28_font
                               text_color: 0xFFFFFF
                         on_click:
                           - homeassistant.service:
@@ -1260,8 +1262,8 @@ lvgl:
                                   return 20.0f;
                     - button:
                         id: heating_main_up_button
-                        width: 70
-                        height: 44
+                        width: 66
+                        height: 34
                         bg_color: 0x3A3A3A
                         radius: 8
                         pad_all: 0
@@ -1269,7 +1271,7 @@ lvgl:
                           - label:
                               align: center
                               text: "+"
-                              text_font: roboto36_font
+                              text_font: roboto28_font
                               text_color: 0xFFFFFF
                         on_click:
                           - homeassistant.service:
@@ -1287,12 +1289,12 @@ lvgl:
         # BUTTON: Vacuum robot (opens vacuum page)
         # =========================================================================
         - button:
-            height: $button_height_single
-            width: $button_width
             id: vacuum_button
             styles: control
-            grid_cell_column_pos: 2
-            grid_cell_row_pos: 2
+            grid_cell_column_pos: 3
+            grid_cell_row_pos: 0
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
             widgets:
               - label:
                   text_font: $icon_font
@@ -1307,7 +1309,7 @@ lvgl:
                   page: "Staubi-Saugi"
 
         # =========================================================================
-        # INFO BOX: Solar PV system visualization (spans rows 1-2, cols 0-1)
+        # INFO BOX: Solar PV system visualization (bottom-left, rows 2-3, cols 0-1)
         # =========================================================================
         # Two views switchable via the toggle button in the top-right corner:
         #   View A (info_view_flow): energy flow diagram (default visible)
@@ -1319,12 +1321,12 @@ lvgl:
         # =========================================================================
         - obj:
             id: info_box
-            width: 460px
-            height: 430px
             grid_cell_column_pos: 0
-            grid_cell_row_pos: 1
+            grid_cell_row_pos: 2
             grid_cell_column_span: 2
             grid_cell_row_span: 2
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
             styles: control
             clickable: false
             pad_all: 0

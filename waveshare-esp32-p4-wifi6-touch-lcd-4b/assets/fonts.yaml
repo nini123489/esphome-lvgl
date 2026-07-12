@@ -47,6 +47,13 @@ font:
     bpp: 4
     glyphs: *latin_glyphs
 
+  # Mid-size used by the compacted heating card target temperature in the 4x4 grid.
+  - file: "gfonts://Roboto"
+    id: roboto28_font
+    size: 42
+    bpp: 4
+    glyphs: *latin_glyphs
+
   - file: "gfonts://Roboto"
     id: roboto18_font
     size: 27
