@@ -64,6 +64,13 @@ font:
       "\U000F04E1",  # mdi-swap-horizontal
       "\U000F0425",  # mdi-power
       "\U000F0208",  # mdi-view-dashboard
+      "\U000F0335",  # mdi-lightbulb
+      "\U000F042B",  # mdi-printer-3d
+      "\U000F0595",  # mdi-weather-partly-cloudy
+      "\U000F0210",  # mdi-fan
+      "\U000F058E",  # mdi-water-percent
+      "\U000F1903",  # mdi-home-lightning-bolt
+      "\U000F01D8",  # mdi-dots-horizontal
       ]
 
 # Map icons to names
@@ -116,3 +123,7 @@ substitutions:
   wx_hail:            "\U000F0592"
   wx_windy:           "\U000F059D"
   view_dashboard:     "\U000F0208"
+  fan:                "\U000F0210"
+  humidity:           "\U000F058E"
+  house_power:        "\U000F1903"
+  dots_horizontal:    "\U000F01D8"

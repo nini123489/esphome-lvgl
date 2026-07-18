@@ -44,6 +44,10 @@ esphome:
     then:
       - delay: 2s
       - script.execute: nav_to_default_page
+      # Apply the collapse/placeholder state of the notification row once the
+      # collapse_notify switch has restored; without this the empty row would
+      # stay visible until the first notification arrives.
+      - script.execute: notif_render
 
 
 # -----------------------------------------------------------------------------

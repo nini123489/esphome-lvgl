@@ -13,11 +13,11 @@ Konfig steckt komplett im Subordner [`waveshare-esp32-p4-wifi6-touch-lcd-4b/`](w
 
 ## Funktionen
 
-- **Startseiten-Grid** mit Buttons für Szenen, 3D-Drucker, Staubsauger, Eve-Thermostat (mit ±0.5 °C-Tasten und Power-Toggle).
-- **Solar-PV-Visualisierung** — Plus-Layout mit Flussrichtungs-Pfeilen (Sonnenbatterie-Daten) und alternativer kompakter Listenansicht (Toggle oben rechts).
-- **Detail-Pages** für Heizung, 3D-Drucker, Staubsauger, Szenen.
-- **Notification-Center** (Top-Layer-Overlay, max. 6 Slots, Auto-Expire).
-- **Greeting-Page** mit großer Uhr, Tageszeit-Greeter (+ Name aus HA), 4-Slot-Stunden-Forecast.
+- **Dashboard** (Übersichtsseite): Kopfzeile mit großer Uhr + Datum, passive Statuszeile (Außen-/Innentemperatur, Luftfeuchte, PV-Erzeugung, Hausverbrauch, Akku-SoC), Mitteilungszeile, Stack-Widget mit Tab-Leiste (Heizung / Ventilator / Szenen) und drei Quick-Buttons.
+- **Stack-Widget**: Heizung (Eve-Thermostat, ±0.5 °C, Ist/Ziel-Balken, Auto/Manuell/Aus), Ventilator (Xiaomi Standventilator: An/Aus, Geschwindigkeit, Schwenken, Preset, Sleep-Timer), Szenen.
+- **Solar-PV-Visualisierung** auf der Energie-Seite — Plus-Layout mit Flussrichtungs-Pfeilen (Sonnenbatterie-Daten) und alternativer kompakter Listenansicht (Toggle oben rechts).
+- **Detail-Pages** für Wetter (4-Slot-Stunden-Forecast), 3D-Drucker, Energie, Heizung, Staubsauger, Szenen und eine „Mehr"-Seite als Sammelpunkt.
+- **Mitteilungen**: 2 Inline-Slots auf dem Dashboard (Icon, Text, Zeitstempel), Auto-Expire, Antippen verwirft. Per HA-Switch „Mitteilungen einklappen" verschwindet die Zeile, solange sie leer ist.
 - **HA-Fernsteuerung**: Aktive Seite per Select wählen, Default-Seite konfigurieren, Auto-Revert nach Idle (Zeit einstellbar) / nach Display-Off ein- oder ausschalten — alles über HA-Entities exposed.
 - **Tap-to-Wake** + Präsenz-Sensor-gesteuerter Bildschirmschoner.
 
@@ -25,10 +25,12 @@ Konfig steckt komplett im Subordner [`waveshare-esp32-p4-wifi6-touch-lcd-4b/`](w
 
 1. **ESPHome-Konfig in HA-Dashboard anlegen** mit Inhalt von [`waveshare-esp32-p4-wifi6-touch-lcd-4b/esphome.yaml`](waveshare-esp32-p4-wifi6-touch-lcd-4b/esphome.yaml). `name`, `friendly_name`, `room` in den Substitutions anpassen.
 2. **`secrets.yaml`** im ESPHome-Dashboard pflegen — Variablen `wifi_ssid` und `wifi_password`.
-3. **Greeting-Page-Forecast**: 12 Template-Sensoren in HA anlegen (Snippet im `template:`-Stil mit `weather.get_forecasts`-Trigger). Siehe Commit-Historie / Plan-Datei.
+3. **Wetter-Page-Forecast**: 12 Template-Sensoren in HA anlegen (Snippet im `template:`-Stil mit `weather.get_forecasts`-Trigger). Siehe Commit-Historie / Plan-Datei.
 4. **Solar-Page**: erwartet die `sensor.sonnenbatterie_217105_state_*`-Entities aus dem Sonnenbatterie-HA-Plugin.
-5. **Heizung**: `climate.eve_thermo_20ebp1701`. Bei abweichender Entity-ID die drei Stellen in `device/sensors.yaml` und die beiden `homeassistant.service`-Blöcke in `device/lvgl.yaml` anpassen.
-6. Compilen & Flashen.
+5. **Heizung**: `climate.eve_thermo_20ebp1701`. Bei abweichender Entity-ID die drei Stellen in `device/sensors.yaml` und die `homeassistant.service`-Blöcke im Heizung-Tab in `device/lvgl.yaml` anpassen.
+6. **Ventilator**: `fan.dmaker_de_454884949_p33_s_2_fan` + `number.dmaker_de_454884949_p33_off_delay_time_p_3_1` (Sleep-Timer). Die Preset-Namen („Direkte brise" / „Natürliche brise") müssen exakt mit dem `preset_modes`-Attribut der Entity übereinstimmen.
+7. **Luftfeuchte**: `sensor.eve_room_af92_humidity`.
+8. Compilen & Flashen.
 
 ## Customizing
 

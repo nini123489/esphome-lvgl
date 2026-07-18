@@ -18,14 +18,15 @@
 # =============================================================================
 
 # =============================================================================
-# NOTIFICATION CENTER — state + scripts
+# NOTIFICATIONS — state + scripts
 # =============================================================================
-# - 6 fixed string slots (newest first, slot 0 = newest).
-# - notification_count tracks how many slots are active (0..6).
+# - 2 fixed string slots rendered inline on the dashboard (slot 0 = newest).
+# - notification_count tracks how many slots are active (0..2).
 # - HA calls api action "notify" (device.yaml) -> script notif_push.
-# - Tapping a list entry -> script notif_dismiss with the slot index.
-# - notif_render re-syncs UI: labels, hidden-flags, bell visibility,
-#   and auto-closes the panel when the list becomes empty.
+# - Tapping an entry -> script notif_dismiss with the slot index.
+# - notif_render re-syncs the two rows, the "Keine Mitteilungen" placeholder,
+#   and the collapse state of the whole row (see collapse_notify in
+#   addon/ha_controls.yaml).
 # =============================================================================
 
 globals:
@@ -41,19 +42,12 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '""'
-  - id: notif_text_2
+  # Per-slot wall-clock stamp ("HH:MM") captured when the entry was pushed.
+  - id: notif_time_0
     type: std::string
     restore_value: false
     initial_value: '""'
-  - id: notif_text_3
-    type: std::string
-    restore_value: false
-    initial_value: '""'
-  - id: notif_text_4
-    type: std::string
-    restore_value: false
-    initial_value: '""'
-  - id: notif_text_5
+  - id: notif_time_1
     type: std::string
     restore_value: false
     initial_value: '""'
@@ -66,30 +60,8 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
-  - id: notif_expire_2
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-  - id: notif_expire_3
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-  - id: notif_expire_4
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-  - id: notif_expire_5
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
   # Info-Box view toggle: false = energy flow diagram visible (default), true = 2x2 grid view visible
   - id: info_view_flow_hidden
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  # Tracks whether the notification panel overlay is currently open. Used to
-  # skip the idle/backlight auto-return to main_page so an open panel stays open.
-  - id: notif_panel_open
     type: bool
     restore_value: false
     initial_value: 'false'
@@ -112,11 +84,6 @@ script:
       page: string
     then:
       - lambda: 'id(active_page_select).publish_state(page);'
-      - if:
-          condition:
-            lambda: 'return page == "Begrüßung";'
-          then:
-            - lvgl.page.show: greeting_page
       - if:
           condition:
             lambda: 'return page == "Übersicht";'
@@ -142,6 +109,21 @@ script:
             lambda: 'return page == "Staubi-Saugi";'
           then:
             - lvgl.page.show: vacuum_page
+      - if:
+          condition:
+            lambda: 'return page == "Wetter";'
+          then:
+            - lvgl.page.show: weather_page
+      - if:
+          condition:
+            lambda: 'return page == "Energie";'
+          then:
+            - lvgl.page.show: energy_page
+      - if:
+          condition:
+            lambda: 'return page == "Mehr";'
+          then:
+            - lvgl.page.show: more_page
 
   # Read the HA "Default-Seite" select and navigate there. Called from boot,
   # idle revert, and the backlight off handler.
@@ -159,16 +141,9 @@ script:
       expire_hours: float
     then:
       - lambda: |-
-          // Shift text + expire slots 0..4 down to 1..5, oldest (was 5) is dropped.
-          id(notif_text_5)   = id(notif_text_4);
-          id(notif_expire_5) = id(notif_expire_4);
-          id(notif_text_4)   = id(notif_text_3);
-          id(notif_expire_4) = id(notif_expire_3);
-          id(notif_text_3)   = id(notif_text_2);
-          id(notif_expire_3) = id(notif_expire_2);
-          id(notif_text_2)   = id(notif_text_1);
-          id(notif_expire_2) = id(notif_expire_1);
+          // Shift slot 0 -> 1; the previous slot 1 is dropped.
           id(notif_text_1)   = id(notif_text_0);
+          id(notif_time_1)   = id(notif_time_0);
           id(notif_expire_1) = id(notif_expire_0);
           // Compose new entry into slot 0.
           std::string combined = title;
@@ -177,6 +152,15 @@ script:
             combined += message;
           }
           id(notif_text_0) = combined;
+          // Wall-clock stamp shown right-aligned in the row. Empty before sync.
+          auto now = id(sntp_time).now();
+          if (now.is_valid()) {
+            char tb[8];
+            snprintf(tb, sizeof(tb), "%02d:%02d", now.hour, now.minute);
+            id(notif_time_0) = tb;
+          } else {
+            id(notif_time_0) = "";
+          }
           // Compute expire timestamp. 0 = never expire.
           if (expire_hours > 0.0f) {
             uint32_t now_s = (uint32_t)(millis() / 1000ULL);
@@ -184,17 +168,14 @@ script:
           } else {
             id(notif_expire_0) = 0;
           }
-          if (id(notification_count) < 6) {
+          if (id(notification_count) < 2) {
             id(notification_count) = id(notification_count) + 1;
           }
       - script.execute: notif_render
-      # Wake the display (no-op if already on) and pop the panel open so the
-      # user actually sees the new notification.
+      # Wake the display (no-op if already on) so the user sees the new entry.
+      # The row is inline on the dashboard, so there is no panel to open.
       - light.turn_on:
           id: backlight
-      - lvgl.widget.update:
-          id: notif_panel
-          hidden: false
 
   - id: notif_dismiss
     mode: queued
@@ -202,94 +183,65 @@ script:
       index: int
     then:
       - lambda: |-
-          int i = index;
-          // Shift entries below the removed one up by one slot (text + expire).
-          if (i <= 0) { id(notif_text_0) = id(notif_text_1); id(notif_expire_0) = id(notif_expire_1); }
-          if (i <= 1) { id(notif_text_1) = id(notif_text_2); id(notif_expire_1) = id(notif_expire_2); }
-          if (i <= 2) { id(notif_text_2) = id(notif_text_3); id(notif_expire_2) = id(notif_expire_3); }
-          if (i <= 3) { id(notif_text_3) = id(notif_text_4); id(notif_expire_3) = id(notif_expire_4); }
-          if (i <= 4) { id(notif_text_4) = id(notif_text_5); id(notif_expire_4) = id(notif_expire_5); }
-          id(notif_text_5) = "";
-          id(notif_expire_5) = 0;
+          // Removing slot 0 pulls slot 1 up; slot 1 is always cleared.
+          if (index <= 0) {
+            id(notif_text_0)   = id(notif_text_1);
+            id(notif_time_0)   = id(notif_time_1);
+            id(notif_expire_0) = id(notif_expire_1);
+          }
+          id(notif_text_1)   = "";
+          id(notif_time_1)   = "";
+          id(notif_expire_1) = 0;
           if (id(notification_count) > 0) {
             id(notification_count) = id(notification_count) - 1;
           }
       - script.execute: notif_render
 
+  # Re-syncs both inline rows, the placeholder, and the collapse state.
+  # Called by push/dismiss/expiry and by the collapse_notify switch.
   - id: notif_render
     mode: restart
     then:
       # Slot 0
       - lvgl.label.update:
-          id: notif_label_0
+          id: main_notif_text_0
           text: !lambda 'return id(notif_text_0);'
+      - lvgl.label.update:
+          id: main_notif_time_0
+          text: !lambda 'return id(notif_time_0);'
       - lvgl.widget.update:
-          id: notif_item_0
+          id: main_notif_slot_0
           hidden: !lambda 'return id(notification_count) < 1;'
       # Slot 1
       - lvgl.label.update:
-          id: notif_label_1
+          id: main_notif_text_1
           text: !lambda 'return id(notif_text_1);'
+      - lvgl.label.update:
+          id: main_notif_time_1
+          text: !lambda 'return id(notif_time_1);'
       - lvgl.widget.update:
-          id: notif_item_1
+          id: main_notif_slot_1
           hidden: !lambda 'return id(notification_count) < 2;'
-      # Slot 2
-      - lvgl.label.update:
-          id: notif_label_2
-          text: !lambda 'return id(notif_text_2);'
+      # Placeholder text, only while the row is empty
       - lvgl.widget.update:
-          id: notif_item_2
-          hidden: !lambda 'return id(notification_count) < 3;'
-      # Slot 3
-      - lvgl.label.update:
-          id: notif_label_3
-          text: !lambda 'return id(notif_text_3);'
+          id: main_notif_empty_label
+          hidden: !lambda 'return id(notification_count) > 0;'
+      # Collapse the whole row when empty and the user asked for it. Flex skips
+      # hidden children, so the freed height goes to the stack card by itself.
       - lvgl.widget.update:
-          id: notif_item_3
-          hidden: !lambda 'return id(notification_count) < 4;'
-      # Slot 4
-      - lvgl.label.update:
-          id: notif_label_4
-          text: !lambda 'return id(notif_text_4);'
-      - lvgl.widget.update:
-          id: notif_item_4
-          hidden: !lambda 'return id(notification_count) < 5;'
-      # Slot 5
-      - lvgl.label.update:
-          id: notif_label_5
-          text: !lambda 'return id(notif_text_5);'
-      - lvgl.widget.update:
-          id: notif_item_5
-          hidden: !lambda 'return id(notification_count) < 6;'
-      # Bell visibility
-      - lvgl.widget.update:
-          id: notif_bell
-          hidden: !lambda 'return id(notification_count) == 0;'
-      # Auto-close panel when nothing left
-      - if:
-          condition:
-            lambda: 'return id(notification_count) == 0;'
-          then:
-            - lvgl.widget.update:
-                id: notif_panel
-                hidden: true
-            - lambda: 'id(notif_panel_open) = false;'
+          id: main_notif_box
+          hidden: !lambda 'return id(notification_count) == 0 && id(collapse_notify).state;'
 
   # Periodic check: drop slots whose expire timestamp has passed.
-  # In-place two-pointer compaction over text + expire arrays.
+  # In-place two-pointer compaction over text + time + expire arrays.
   - id: notif_check_expired
     mode: restart
     then:
       - lambda: |-
           uint32_t now_s = (uint32_t)(millis() / 1000ULL);
-          std::string texts[6] = {
-            id(notif_text_0), id(notif_text_1), id(notif_text_2),
-            id(notif_text_3), id(notif_text_4), id(notif_text_5)
-          };
-          uint32_t exps[6] = {
-            id(notif_expire_0), id(notif_expire_1), id(notif_expire_2),
-            id(notif_expire_3), id(notif_expire_4), id(notif_expire_5)
-          };
+          std::string texts[2] = { id(notif_text_0), id(notif_text_1) };
+          std::string times[2] = { id(notif_time_0), id(notif_time_1) };
+          uint32_t exps[2]     = { id(notif_expire_0), id(notif_expire_1) };
           int count = id(notification_count);
           int write = 0;
           bool changed = false;
@@ -297,6 +249,7 @@ script:
             if (exps[read] == 0 || now_s < exps[read]) {
               if (write != read) {
                 texts[write] = texts[read];
+                times[write] = times[read];
                 exps[write]  = exps[read];
               }
               write++;
@@ -304,17 +257,14 @@ script:
               changed = true;
             }
           }
-          for (int i = write; i < 6; i++) {
+          for (int i = write; i < 2; i++) {
             texts[i] = "";
+            times[i] = "";
             exps[i]  = 0;
           }
           if (changed) {
-            id(notif_text_0)   = texts[0]; id(notif_expire_0) = exps[0];
-            id(notif_text_1)   = texts[1]; id(notif_expire_1) = exps[1];
-            id(notif_text_2)   = texts[2]; id(notif_expire_2) = exps[2];
-            id(notif_text_3)   = texts[3]; id(notif_expire_3) = exps[3];
-            id(notif_text_4)   = texts[4]; id(notif_expire_4) = exps[4];
-            id(notif_text_5)   = texts[5]; id(notif_expire_5) = exps[5];
+            id(notif_text_0) = texts[0]; id(notif_time_0) = times[0]; id(notif_expire_0) = exps[0];
+            id(notif_text_1) = texts[1]; id(notif_time_1) = times[1]; id(notif_expire_1) = exps[1];
             id(notification_count) = write;
             id(notif_render).execute();
           }
@@ -327,14 +277,13 @@ interval:
   # Idle-revert check. Compares millis() against last_activity_ms (touched by
   # the touchscreen on_touch handler in device.yaml) and reverts to the default
   # page when the HA-configured threshold is exceeded. Skipped while the
-  # notification panel is open or the HA-side revert switch is off.
+  # HA-side revert switch is off.
   - interval: 15s
     then:
       - if:
           condition:
             lambda: |-
               if (!id(idle_revert_enabled).state) return false;
-              if (id(notif_panel_open)) return false;
               uint32_t threshold = (uint32_t)(id(idle_timeout_minutes).state * 60.0f * 1000.0f);
               return ((uint32_t) millis() - id(last_activity_ms)) >= threshold;
           then:
@@ -346,106 +295,11 @@ lvgl:
   displays: my_display
   touchscreens: my_touchscreen
   top_layer:
+    # The former global status bar (clock, temperatures, battery, notification
+    # bell) lived here and forced every page to reserve 51px of top padding.
+    # Those values now live in the dashboard header + status line, and each
+    # sub-page owns its full height, so only the voice overlay remains.
     widgets:
-
-      # =========================================================================
-      # TEMPERATURE DISPLAY (Top-left corner of screen)
-      # =========================================================================
-      # WHAT IT SHOWS:
-      #   Displays two temperatures: "outdoor° / indoor°"
-      #   Example: "15° / 22°" means 15°C outside, 22°C in the office
-      #
-      # WHERE THE DATA COMES FROM (defined in sensors.yaml):
-      #   - Left number: sensor.outdoor_temperature (weather/outdoor sensor)
-      #   - Right number: sensor.office_temperature (indoor room sensor)
-      #
-      # HOW IT UPDATES:
-      #   When either temperature sensor changes in Home Assistant, the
-      #   sensors.yaml file triggers an update to this label's text.
-      # =========================================================================
-      - label:
-          text: "-° / -°"
-          id: temperatures
-          styles: roboto15_style
-          align: top_left
-          x: 12
-          y: 6
-          text_color: 0xFFFFFF
-
-      # =========================================================================
-      # CLOCK DISPLAY (Top-center of screen)
-      # =========================================================================
-      # WHAT IT SHOWS:
-      #   Current time in 24-hour format (e.g., "14:30")
-      #
-      # WHERE THE DATA COMES FROM:
-      #   The time component (configured in addon/time.yaml) syncs with
-      #   Home Assistant's time and updates this label every minute.
-      # =========================================================================
-      - label:
-          text: "--:--"
-          id: display_time
-          styles: roboto15_style
-          align: top_mid
-          x: 0
-          y: 6
-          text_align: center
-          text_color: 0xFFFFFF
-
-      # =========================================================================
-      # HOME BATTERY STATE OF CHARGE (Top-right corner)
-      # =========================================================================
-      # Battery icon + percentage of the home storage (Sonnenbatterie).
-      # Bound in sensors.yaml to sensor.sonnenbatterie_217105_state_battery_percentage_user.
-      # =========================================================================
-      - obj:
-          id: battery_box
-          align: top_right
-          x: -12
-          y: 6
-          width: SIZE_CONTENT
-          height: SIZE_CONTENT
-          bg_opa: TRANSP
-          border_width: 0
-          pad_all: 0
-          clickable: false
-          layout:
-            type: flex
-            flex_flow: row
-            flex_align_cross: center
-            pad_column: 4
-          widgets:
-            - label:
-                text_font: icon_font_small
-                text_color: 0xFFFFFF
-                text: $battery
-            - label:
-                id: battery_percentage
-                styles: roboto15_style
-                text_color: 0xFFFFFF
-                text: "--%"
-
-      # =========================================================================
-      # NOTIFICATION BELL (Top-right, left of battery)
-      # =========================================================================
-      # Hidden by default; appears only while there are open notifications.
-      # Tap opens the notification panel.
-      # =========================================================================
-      - label:
-          id: notif_bell
-          text_font: icon_font_small
-          text_color: 0xFFFFFF
-          text: $bell
-          align: top_right
-          x: -120
-          y: 6
-          hidden: true
-          clickable: true
-          on_click:
-            - lvgl.widget.update:
-                id: notif_panel
-                hidden: false
-            - lambda: 'id(notif_panel_open) = true;'
 
       # =========================================================================
       # VOICE ASSISTANT OVERLAY (full-screen, top_layer)
@@ -498,308 +352,1377 @@ lvgl:
                 long_mode: wrap
                 width: 600px
 
-      # =========================================================================
-      # NOTIFICATION PANEL (full-screen overlay, top_layer)
-      # =========================================================================
-      # Hidden by default. Opened by tapping the bell. Tap on the dim
-      # background closes the panel. Tap on a list entry dismisses that entry.
-      # =========================================================================
-      - obj:
-          id: notif_panel
-          width: 100%
-          height: 100%
-          align: center
-          bg_color: 0x000000
-          bg_opa: 80%
-          border_width: 0
-          pad_all: 0
-          hidden: true
-          clickable: true
-          on_click:
-            - lvgl.widget.update:
-                id: notif_panel
-                hidden: true
-            - lambda: 'id(notif_panel_open) = false;'
-          widgets:
-            - obj:
-                id: notif_panel_box
-                width: 640px
-                height: 600px
-                align: top_mid
-                y: 50
-                bg_color: 0x2A2A2A
-                bg_opa: cover
-                border_width: 2
-                border_color: 0xE06A2A
-                radius: 16
-                pad_all: 20
-                clickable: true
-                layout:
-                  type: flex
-                  flex_flow: column
-                  pad_row: 10
-                widgets:
-                  # Header row
-                  - obj:
-                      width: 100%
-                      height: SIZE_CONTENT
-                      bg_opa: TRANSP
-                      border_width: 0
-                      pad_all: 0
-                      clickable: false
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_main: space_between
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            text: "Mitteilungen"
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                        - label:
-                            text_font: icon_font_small
-                            text_color: 0xB0B0B0
-                            text: $close
-                            clickable: true
-                            on_click:
-                              - lvgl.widget.update:
-                                  id: notif_panel
-                                  hidden: true
-                              - lambda: 'id(notif_panel_open) = false;'
-
-                  # List items (each tappable to dismiss)
-                  - obj:
-                      id: notif_item_0
-                      width: 100%
-                      height: 70px
-                      bg_color: 0x3A3A3A
-                      bg_opa: cover
-                      border_width: 0
-                      radius: 8
-                      pad_left: 16
-                      pad_right: 16
-                      pad_top: 0
-                      pad_bottom: 0
-                      hidden: true
-                      clickable: true
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            id: notif_label_0
-                            text: ""
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                      on_click:
-                        - script.execute:
-                            id: notif_dismiss
-                            index: 0
-
-                  - obj:
-                      id: notif_item_1
-                      width: 100%
-                      height: 70px
-                      bg_color: 0x3A3A3A
-                      bg_opa: cover
-                      border_width: 0
-                      radius: 8
-                      pad_left: 16
-                      pad_right: 16
-                      pad_top: 0
-                      pad_bottom: 0
-                      hidden: true
-                      clickable: true
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            id: notif_label_1
-                            text: ""
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                      on_click:
-                        - script.execute:
-                            id: notif_dismiss
-                            index: 1
-
-                  - obj:
-                      id: notif_item_2
-                      width: 100%
-                      height: 70px
-                      bg_color: 0x3A3A3A
-                      bg_opa: cover
-                      border_width: 0
-                      radius: 8
-                      pad_left: 16
-                      pad_right: 16
-                      pad_top: 0
-                      pad_bottom: 0
-                      hidden: true
-                      clickable: true
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            id: notif_label_2
-                            text: ""
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                      on_click:
-                        - script.execute:
-                            id: notif_dismiss
-                            index: 2
-
-                  - obj:
-                      id: notif_item_3
-                      width: 100%
-                      height: 70px
-                      bg_color: 0x3A3A3A
-                      bg_opa: cover
-                      border_width: 0
-                      radius: 8
-                      pad_left: 16
-                      pad_right: 16
-                      pad_top: 0
-                      pad_bottom: 0
-                      hidden: true
-                      clickable: true
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            id: notif_label_3
-                            text: ""
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                      on_click:
-                        - script.execute:
-                            id: notif_dismiss
-                            index: 3
-
-                  - obj:
-                      id: notif_item_4
-                      width: 100%
-                      height: 70px
-                      bg_color: 0x3A3A3A
-                      bg_opa: cover
-                      border_width: 0
-                      radius: 8
-                      pad_left: 16
-                      pad_right: 16
-                      pad_top: 0
-                      pad_bottom: 0
-                      hidden: true
-                      clickable: true
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            id: notif_label_4
-                            text: ""
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                      on_click:
-                        - script.execute:
-                            id: notif_dismiss
-                            index: 4
-
-                  - obj:
-                      id: notif_item_5
-                      width: 100%
-                      height: 70px
-                      bg_color: 0x3A3A3A
-                      bg_opa: cover
-                      border_width: 0
-                      radius: 8
-                      pad_left: 16
-                      pad_right: 16
-                      pad_top: 0
-                      pad_bottom: 0
-                      hidden: true
-                      clickable: true
-                      layout:
-                        type: flex
-                        flex_flow: row
-                        flex_align_cross: center
-                      widgets:
-                        - label:
-                            id: notif_label_5
-                            text: ""
-                            text_font: roboto19_font
-                            text_color: 0xFFFFFF
-                      on_click:
-                        - script.execute:
-                            id: notif_dismiss
-                            index: 5
-
   pages:
     # =========================================================================
-    # GREETING PAGE — gridless welcome view with clock, greeter, weather forecast
+    # DASHBOARD — the overview page
     # =========================================================================
-    # Layout is absolute (no LVGL layout) so children sit exactly where align/x/y
-    # places them. The 4-slot forecast row uses an inner grid so the columns line
-    # up evenly. All dynamic labels are driven by the time_update script
-    # (clock / date / greeter) and the HA forecast sensors (icon / time / temp).
+    # Vertical stack, top to bottom (heights sum to the 690px content box):
+    #   header 84 + status 40 + notifications 100 + stack flex + quick 96
+    #   with 4 x 10px row gaps.
+    # The stack card is the only flex_grow child, so when the notification row
+    # collapses (see notif_render) its height is donated to the stack card.
+    #
+    # NOTE: theme/button.yaml gives every button 225x210 with 18px padding, so
+    # every button below sets width/height/pad_all explicitly.
     # =========================================================================
-    - id: greeting_page
+    - id: main_page
       scrollbar_mode: "off"
       width: 100%
       height: 100%
       bg_color: 0x1E1E1E
       bg_opa: cover
-      pad_top: 60
-      pad_left: 8
-      pad_right: 8
-      pad_bottom: 8
+      pad_top: 14
+      pad_bottom: 16
+      pad_left: 20
+      pad_right: 20
+      layout:
+        type: flex
+        flex_flow: column
+        pad_row: 10
       widgets:
-        # Big clock (HH:MM)
-        - label:
-            id: greeting_clock_label
-            align: top_mid
-            y: 20
-            text: "--:--"
-            text_font: roboto88_font
-            text_color: 0xFFFFFF
 
-        # Greeting line — "Guten Morgen, Nicklas"
-        - label:
-            id: greeting_message_label
-            align: top_mid
-            y: 180
-            text: "Hallo"
-            text_font: roboto19_font
-            text_color: 0xFFFFFF
-
-        # Date line — "Mittwoch, 5. Juni"
-        - label:
-            id: greeting_date_label
-            align: top_mid
-            y: 215
-            text: "-"
-            text_font: roboto17_font
-            text_color: 0xB0B0B0
-
-        # Hourly forecast row — 4 cells (time / icon / temp) separated by
-        # 3 explicit vertical divider objs. Layout is flex (not grid) so the
-        # dividers can be interleaved as siblings between the slots without
-        # showing up as a stray bar after the last slot. scrollbar_mode is
-        # forced off on every obj so LVGL's default scroll indicator doesn't
-        # leave a thin line at the right edge of each child.
+        # ---------------------------------------------------------------------
+        # HEADER — large clock left, small date right (driven by time_update)
+        # ---------------------------------------------------------------------
         - obj:
-            id: greeting_forecast
+            id: main_header
+            width: 100%
+            height: 84
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: flex
+              flex_flow: row
+              flex_align_main: space_between
+              flex_align_cross: center
+            widgets:
+              - label:
+                  id: main_clock_label
+                  text: "--:--"
+                  text_font: roboto44_font
+                  text_color: 0xFFFFFF
+              - label:
+                  id: main_date_label
+                  text: "-"
+                  text_font: roboto19_font
+                  text_color: 0xB0B0B0
+
+        # ---------------------------------------------------------------------
+        # STATUS LINE — passive info row, no frame, muted colors.
+        # Order: outdoor temp, indoor temp, humidity, PV, house load, battery.
+        # All six labels are updated from sensors.yaml.
+        # ---------------------------------------------------------------------
+        - obj:
+            id: main_status_row
+            width: 100%
+            height: 40
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: flex
+              flex_flow: row
+              flex_align_main: space_between
+              flex_align_cross: center
+            widgets:
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 4
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $wx_sunny
+                    - label:
+                        id: main_status_out_value
+                        text: "--°"
+                        text_font: roboto15_font
+                        text_color: 0xB0B0B0
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 4
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $thermometer
+                    - label:
+                        id: main_status_in_value
+                        text: "--°"
+                        text_font: roboto15_font
+                        text_color: 0xB0B0B0
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 4
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $humidity
+                    - label:
+                        id: main_status_hum_value
+                        text: "--%"
+                        text_font: roboto15_font
+                        text_color: 0xB0B0B0
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 4
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $solar_power
+                    - label:
+                        id: main_status_pv_value
+                        text: "-- W"
+                        text_font: roboto15_font
+                        text_color: 0xB0B0B0
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 4
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $house_power
+                    - label:
+                        id: main_status_house_value
+                        text: "-- W"
+                        text_font: roboto15_font
+                        text_color: 0xB0B0B0
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 4
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $battery
+                    - label:
+                        id: main_status_batt_value
+                        text: "--%"
+                        text_font: roboto15_font
+                        text_color: 0xB0B0B0
+
+        # ---------------------------------------------------------------------
+        # NOTIFICATIONS — two passive rows, newest first.
+        # Fed by the api action "notify" (device.yaml) -> notif_push.
+        # Tapping a row dismisses it. Collapses while empty when the HA switch
+        # "Mitteilungen einklappen" (collapse_notify) is on.
+        # ---------------------------------------------------------------------
+        - obj:
+            id: main_notif_box
+            width: 100%
+            height: 100
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: flex
+              flex_flow: column
+              pad_row: 8
+            widgets:
+              - label:
+                  id: main_notif_empty_label
+                  text: "Keine Mitteilungen"
+                  text_font: roboto17_font
+                  text_color: 0x707070
+              - obj:
+                  id: main_notif_slot_0
+                  width: 100%
+                  height: 46
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  clickable: true
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 10
+                  widgets:
+                    - label:
+                        id: main_notif_icon_0
+                        text_font: icon_font_small
+                        text_color: 0xB0B0B0
+                        text: $bell
+                    - label:
+                        id: main_notif_text_0
+                        text: ""
+                        text_font: roboto17_font
+                        text_color: 0xFFFFFF
+                        flex_grow: 1
+                        long_mode: dot
+                    - label:
+                        id: main_notif_time_0
+                        text: ""
+                        text_font: roboto15_font
+                        text_color: 0x8A8A8A
+                  on_click:
+                    - script.execute:
+                        id: notif_dismiss
+                        index: 0
+              - obj:
+                  id: main_notif_slot_1
+                  width: 100%
+                  height: 46
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  clickable: true
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 10
+                  widgets:
+                    - label:
+                        id: main_notif_icon_1
+                        text_font: icon_font_small
+                        text_color: 0xB0B0B0
+                        text: $bell
+                    - label:
+                        id: main_notif_text_1
+                        text: ""
+                        text_font: roboto17_font
+                        text_color: 0xFFFFFF
+                        flex_grow: 1
+                        long_mode: dot
+                    - label:
+                        id: main_notif_time_1
+                        text: ""
+                        text_font: roboto15_font
+                        text_color: 0x8A8A8A
+                  on_click:
+                    - script.execute:
+                        id: notif_dismiss
+                        index: 1
+
+        # ---------------------------------------------------------------------
+        # STACK WIDGET — main control area.
+        # Left: content area holding three same-size children, all but the
+        # active one hidden. Right: narrow vertical tab strip switching them.
+        # The active tab is highlighted by the theme's checked bg_color.
+        # ---------------------------------------------------------------------
+        - obj:
+            id: main_stack_card
+            width: 100%
+            flex_grow: 1
+            styles: control
+            radius: $radius
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: flex
+              flex_flow: row
+              pad_column: 0
+            widgets:
+
+              # ---------------- content area (no layout: children stack) -----
+              - obj:
+                  id: main_stack_content
+                  flex_grow: 1
+                  height: 100%
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 14
+                  scrollbar_mode: "off"
+                  clickable: false
+                  widgets:
+                    # ===== TAB: Heizung (climate.eve_thermo_20ebp1701) =====
+                    - obj:
+                        id: main_stack_heat
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_main: space_between
+                          pad_row: 14
+                        widgets:
+
+                          # Title + on/off state chip
+                          - obj:
+                              width: 100%
+                              height: 34
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: space_between
+                                flex_align_cross: center
+                              widgets:
+                                - obj:
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      pad_column: 8
+                                    widgets:
+                                      - label:
+                                          text_font: icon_font_small
+                                          text_color: 0xE06A2A
+                                          text: $thermometer
+                                      - label:
+                                          id: main_heat_title_label
+                                          text: "Heizung Wohnzimmer"
+                                          text_font: roboto17_font
+                                          text_color: 0xFFFFFF
+                                - button:
+                                    id: main_heat_state_chip
+                                    width: 76
+                                    height: 34
+                                    pad_all: 0
+                                    radius: 17
+                                    bg_color: 0x2A2A2A
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          id: main_heat_state_label
+                                          align: center
+                                          text: "aus"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_hvac_mode
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: !lambda |-
+                                              if (id(heating_main_hvac_mode).has_state() && id(heating_main_hvac_mode).state != "off") {
+                                                return std::string("off");
+                                              }
+                                              return std::string("heat");
+
+                          # Target temperature with round -/+ buttons
+                          - obj:
+                              width: 100%
+                              height: 84
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: space_evenly
+                                flex_align_cross: center
+                              widgets:
+                                - button:
+                                    id: main_heat_down_button
+                                    width: 76
+                                    height: 76
+                                    pad_all: 0
+                                    radius: 38
+                                    bg_color: 0x3A3A3A
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "-"
+                                          text_font: roboto28_font
+                                          text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_temperature
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: heat
+                                          data_template:
+                                            temperature: "{{ temp }}"
+                                          variables:
+                                            temp: !lambda |-
+                                              if (id(heating_main_target_temp).has_state()) {
+                                                return id(heating_main_target_temp).state - 0.5f;
+                                              }
+                                              return 20.0f;
+                                - label:
+                                    id: main_heat_target_label
+                                    text: "--.-°"
+                                    text_font: roboto36_font
+                                    text_color: 0xFFFFFF
+                                - button:
+                                    id: main_heat_up_button
+                                    width: 76
+                                    height: 76
+                                    pad_all: 0
+                                    radius: 38
+                                    bg_color: 0x3A3A3A
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "+"
+                                          text_font: roboto28_font
+                                          text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_temperature
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: heat
+                                          data_template:
+                                            temperature: "{{ temp }}"
+                                          variables:
+                                            temp: !lambda |-
+                                              if (id(heating_main_target_temp).has_state()) {
+                                                return id(heating_main_target_temp).state + 0.5f;
+                                              }
+                                              return 20.0f;
+
+                          # Current -> target progress. The bar works in tenths
+                          # of a degree (150..250 = 15.0..25.0 °C) because LVGL
+                          # bars are integer-valued.
+                          - obj:
+                              width: 100%
+                              height: 44
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: column
+                                pad_row: 6
+                              widgets:
+                                - obj:
+                                    width: 100%
+                                    height: 26
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_main: space_between
+                                      flex_align_cross: center
+                                    widgets:
+                                      - label:
+                                          id: main_heat_current_label
+                                          text: "Ist --.-°"
+                                          text_font: roboto15_font
+                                          text_color: 0xB0B0B0
+                                      - label:
+                                          id: main_heat_goal_label
+                                          text: "Ziel --.-°"
+                                          text_font: roboto15_font
+                                          text_color: 0xB0B0B0
+                                - bar:
+                                    id: main_heat_bar
+                                    width: 100%
+                                    height: 12
+                                    min_value: 150
+                                    max_value: 250
+                                    value: 150
+                                    bg_color: 0x2A2A2A
+                                    indicator:
+                                      bg_color: 0xE06A2A
+
+                          # Mode row — Auto / Manuell / Aus
+                          - obj:
+                              width: 100%
+                              height: 56
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                pad_column: 12
+                              widgets:
+                                - button:
+                                    id: main_heat_mode_auto
+                                    flex_grow: 1
+                                    height: 56
+                                    pad_all: 0
+                                    radius: 8
+                                    bg_color: 0x2A2A2A
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Auto"
+                                          text_font: roboto15_font
+                                          text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_hvac_mode
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: "auto"
+                                - button:
+                                    id: main_heat_mode_manual
+                                    flex_grow: 1
+                                    height: 56
+                                    pad_all: 0
+                                    radius: 8
+                                    bg_color: 0x2A2A2A
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Manuell"
+                                          text_font: roboto15_font
+                                          text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_hvac_mode
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: "heat"
+                                - button:
+                                    id: main_heat_mode_off
+                                    flex_grow: 1
+                                    height: 56
+                                    pad_all: 0
+                                    radius: 8
+                                    bg_color: 0x2A2A2A
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Aus"
+                                          text_font: roboto15_font
+                                          text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_hvac_mode
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: "off"
+
+                    # ===== TAB: Ventilator (fan.dmaker_de_454884949_p33_s_2_fan) =====
+                    - obj:
+                        id: main_stack_fan
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        hidden: true
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_main: space_between
+                          pad_row: 14
+                        widgets:
+
+                          # Title + on/off chip
+                          - obj:
+                              width: 100%
+                              height: 34
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: space_between
+                                flex_align_cross: center
+                              widgets:
+                                - obj:
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      pad_column: 8
+                                    widgets:
+                                      - label:
+                                          text_font: icon_font_small
+                                          text_color: 0x5AA9E6
+                                          text: $fan
+                                      - label:
+                                          text: "Ventilator"
+                                          text_font: roboto17_font
+                                          text_color: 0xFFFFFF
+                                - button:
+                                    id: main_fan_state_chip
+                                    width: 76
+                                    height: 34
+                                    pad_all: 0
+                                    radius: 17
+                                    bg_color: 0x2A2A2A
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          id: main_fan_state_label
+                                          align: center
+                                          text: "aus"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: fan.toggle
+                                          data:
+                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+
+                          # Speed — label row + slider.
+                          # on_release, not on_value: dragging would otherwise
+                          # fire one service call per intermediate step.
+                          - obj:
+                              width: 100%
+                              height: 56
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: column
+                                pad_row: 8
+                              widgets:
+                                - obj:
+                                    width: 100%
+                                    height: 26
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_main: space_between
+                                      flex_align_cross: center
+                                    widgets:
+                                      - label:
+                                          text: "Geschwindigkeit"
+                                          text_font: roboto15_font
+                                          text_color: 0xB0B0B0
+                                      - label:
+                                          id: main_fan_speed_label
+                                          text: "--%"
+                                          text_font: roboto17_font
+                                          text_color: 0xFFFFFF
+                                - slider:
+                                    id: main_fan_speed_slider
+                                    width: 100%
+                                    height: 22
+                                    min_value: 1
+                                    max_value: 100
+                                    value: 1
+                                    bg_color: $slider_background_color
+                                    indicator:
+                                      bg_color: $button_on_color
+                                    knob:
+                                      bg_color: $slider_knob_color
+                                    on_release:
+                                      - homeassistant.service:
+                                          service: fan.set_percentage
+                                          data:
+                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+                                          data_template:
+                                            percentage: "{{ pct }}"
+                                          variables:
+                                            pct: !lambda 'return (int) x;'
+
+                          # Oscillation + preset chips
+                          - obj:
+                              width: 100%
+                              height: 48
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                pad_column: 12
+                              widgets:
+                                - button:
+                                    id: main_fan_osc_chip
+                                    flex_grow: 1
+                                    height: 48
+                                    pad_all: 0
+                                    radius: 10
+                                    bg_color: 0x2A2A2A
+                                    checkable: true
+                                    widgets:
+                                      - obj:
+                                          align: center
+                                          width: SIZE_CONTENT
+                                          height: SIZE_CONTENT
+                                          bg_opa: TRANSP
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                          layout:
+                                            type: flex
+                                            flex_flow: row
+                                            flex_align_cross: center
+                                            pad_column: 8
+                                          widgets:
+                                            - label:
+                                                text_font: icon_font_small
+                                                text_color: 0xFFFFFF
+                                                text: $swap_horizontal
+                                            - label:
+                                                text: "Schwenken"
+                                                text_font: roboto15_font
+                                                text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: fan.oscillate
+                                          data:
+                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+                                          data_template:
+                                            oscillating: "{{ osc }}"
+                                          variables:
+                                            osc: !lambda |-
+                                              return id(fan_main_oscillating).state ? std::string("false")
+                                                                                    : std::string("true");
+                                # Cycles the two presets the entity offers.
+                                # Spelling must match HA byte for byte.
+                                - button:
+                                    id: main_fan_preset_chip
+                                    flex_grow: 1
+                                    height: 48
+                                    pad_all: 0
+                                    radius: 10
+                                    bg_color: 0x2A2A2A
+                                    widgets:
+                                      - label:
+                                          id: main_fan_preset_label
+                                          align: center
+                                          text: "Direkt"
+                                          text_font: roboto15_font
+                                          text_color: 0xFFFFFF
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: fan.set_preset_mode
+                                          data:
+                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+                                          data_template:
+                                            preset_mode: "{{ pm }}"
+                                          variables:
+                                            pm: !lambda |-
+                                              if (id(fan_main_preset).state == "Direkte brise") {
+                                                return std::string("Natürliche brise");
+                                              }
+                                              return std::string("Direkte brise");
+
+                          # Sleep timer. The entity's own step is 1 minute over
+                          # 0..480, which is unusable by touch, so the buttons
+                          # move in 15-minute steps and clamp to the range.
+                          - obj:
+                              width: 100%
+                              height: 48
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: space_between
+                                flex_align_cross: center
+                              widgets:
+                                - label:
+                                    text: "Timer"
+                                    text_font: roboto15_font
+                                    text_color: 0xB0B0B0
+                                - obj:
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      pad_column: 12
+                                    widgets:
+                                      - button:
+                                          id: main_fan_timer_down
+                                          width: 48
+                                          height: 48
+                                          pad_all: 0
+                                          radius: 24
+                                          bg_color: 0x3A3A3A
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "-"
+                                                text_font: roboto19_font
+                                                text_color: 0xFFFFFF
+                                          on_click:
+                                            - homeassistant.service:
+                                                service: number.set_value
+                                                data:
+                                                  entity_id: number.dmaker_de_454884949_p33_off_delay_time_p_3_1
+                                                data_template:
+                                                  value: "{{ v }}"
+                                                variables:
+                                                  v: !lambda |-
+                                                    float c = id(fan_main_off_delay).has_state()
+                                                                ? id(fan_main_off_delay).state : 0.0f;
+                                                    float n = c - 15.0f;
+                                                    if (n < 0.0f) n = 0.0f;
+                                                    return (int) n;
+                                      - label:
+                                          id: main_fan_timer_label
+                                          text: "Aus"
+                                          text_font: roboto17_font
+                                          text_color: 0xFFFFFF
+                                      - button:
+                                          id: main_fan_timer_up
+                                          width: 48
+                                          height: 48
+                                          pad_all: 0
+                                          radius: 24
+                                          bg_color: 0x3A3A3A
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "+"
+                                                text_font: roboto19_font
+                                                text_color: 0xFFFFFF
+                                          on_click:
+                                            - homeassistant.service:
+                                                service: number.set_value
+                                                data:
+                                                  entity_id: number.dmaker_de_454884949_p33_off_delay_time_p_3_1
+                                                data_template:
+                                                  value: "{{ v }}"
+                                                variables:
+                                                  v: !lambda |-
+                                                    float c = id(fan_main_off_delay).has_state()
+                                                                ? id(fan_main_off_delay).state : 0.0f;
+                                                    float n = c + 15.0f;
+                                                    if (n > 480.0f) n = 480.0f;
+                                                    return (int) n;
+
+                    # ===== TAB: Szenen =====
+                    - obj:
+                        id: main_stack_scenes
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        hidden: true
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          pad_row: 14
+                        widgets:
+                          - obj:
+                              width: SIZE_CONTENT
+                              height: 34
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_cross: center
+                                pad_column: 8
+                              widgets:
+                                - label:
+                                    text_font: icon_font_small
+                                    text_color: 0xFFC845
+                                    text: $lightbulb
+                                - label:
+                                    text: "Szenen"
+                                    text_font: roboto17_font
+                                    text_color: 0xFFFFFF
+                          - button:
+                              id: main_scene_abendlicht_button
+                              width: 100%
+                              height: 100
+                              pad_all: 0
+                              radius: $radius
+                              bg_color: 0x2A2A2A
+                              widgets:
+                                - label:
+                                    align: center
+                                    text: "Abendlicht"
+                                    text_font: roboto19_font
+                                    text_color: 0xFFFFFF
+                              on_click:
+                                - homeassistant.service:
+                                    service: scene.turn_on
+                                    data:
+                                      entity_id: scene.abendlicht
+                          - button:
+                              id: main_scene_licht_aus_button
+                              width: 100%
+                              height: 100
+                              pad_all: 0
+                              radius: $radius
+                              bg_color: 0x2A2A2A
+                              widgets:
+                                - label:
+                                    align: center
+                                    text: "Licht aus"
+                                    text_font: roboto19_font
+                                    text_color: 0xFFFFFF
+                              on_click:
+                                - homeassistant.service:
+                                    service: scene.turn_on
+                                    data:
+                                      entity_id: scene.licht_aus
+
+              # ---------------- vertical tab strip (right edge) ---------------
+              - obj:
+                  id: main_stack_tabs
+                  width: 72
+                  height: 100%
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 8
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: column
+                    flex_align_main: center
+                    flex_align_cross: center
+                    pad_row: 10
+                  widgets:
+                    - button:
+                        id: main_tab_heat_button
+                        width: 56
+                        height: 56
+                        pad_all: 0
+                        radius: 28
+                        bg_color: 0x3A3A3A
+                        checkable: true
+                        state:
+                          checked: true
+                        widgets:
+                          - label:
+                              align: center
+                              text_font: icon_font_small
+                              text_color: 0xFFFFFF
+                              text: $thermometer
+                        on_click:
+                          - lvgl.widget.update:
+                              id: main_stack_heat
+                              hidden: false
+                          - lvgl.widget.update:
+                              id: main_stack_fan
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_scenes
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_tab_heat_button
+                              state:
+                                checked: true
+                          - lvgl.widget.update:
+                              id: main_tab_fan_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_scenes_button
+                              state:
+                                checked: false
+                    - button:
+                        id: main_tab_fan_button
+                        width: 56
+                        height: 56
+                        pad_all: 0
+                        radius: 28
+                        bg_color: 0x3A3A3A
+                        checkable: true
+                        state:
+                          checked: false
+                        widgets:
+                          - label:
+                              align: center
+                              text_font: icon_font_small
+                              text_color: 0xFFFFFF
+                              text: $fan
+                        on_click:
+                          - lvgl.widget.update:
+                              id: main_stack_heat
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_fan
+                              hidden: false
+                          - lvgl.widget.update:
+                              id: main_stack_scenes
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_tab_heat_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_fan_button
+                              state:
+                                checked: true
+                          - lvgl.widget.update:
+                              id: main_tab_scenes_button
+                              state:
+                                checked: false
+                    - button:
+                        id: main_tab_scenes_button
+                        width: 56
+                        height: 56
+                        pad_all: 0
+                        radius: 28
+                        bg_color: 0x3A3A3A
+                        checkable: true
+                        state:
+                          checked: false
+                        widgets:
+                          - label:
+                              align: center
+                              text_font: icon_font_small
+                              text_color: 0xFFFFFF
+                              text: $lightbulb
+                        on_click:
+                          - lvgl.widget.update:
+                              id: main_stack_heat
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_fan
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_scenes
+                              hidden: false
+                          - lvgl.widget.update:
+                              id: main_tab_heat_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_fan_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_scenes_button
+                              state:
+                                checked: true
+
+        # ---------------------------------------------------------------------
+        # QUICK BUTTONS — single tiles leading to the detail sub-pages
+        # ---------------------------------------------------------------------
+        - obj:
+            id: main_quick_row
+            width: 100%
+            height: 96
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: flex
+              flex_flow: row
+              pad_column: 12
+            widgets:
+              - button:
+                  id: main_quick_weather_button
+                  flex_grow: 1
+                  height: 96
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 6
+                        widgets:
+                          - label:
+                              text_font: icon_font_small
+                              text_color: 0xFFFFFF
+                              text: $wx_partly_cloudy
+                          - label:
+                              text: "Wetter"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Wetter"
+              - button:
+                  id: main_quick_printer_button
+                  flex_grow: 1
+                  height: 96
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 6
+                        widgets:
+                          - label:
+                              text_font: icon_font_small
+                              text_color: 0xFFFFFF
+                              text: $printer
+                          - label:
+                              text: "3D Drucker"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Drucker"
+              - button:
+                  id: main_quick_more_button
+                  flex_grow: 1
+                  height: 96
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 6
+                        widgets:
+                          - label:
+                              text_font: icon_font_small
+                              text_color: 0xFFFFFF
+                              text: $dots_horizontal
+                          - label:
+                              text: "Mehr"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Mehr"
+
+    # =========================================================================
+    # WEATHER PAGE — current conditions + the 4-slot forecast row
+    # =========================================================================
+    # The forecast widgets moved here unchanged from the former greeting page;
+    # they are fed by the forecast_slot_* template sensors in sensors.yaml.
+    # =========================================================================
+    - id: weather_page
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x1E1E1E
+      bg_opa: cover
+      pad_all: 8
+      widgets:
+        - button:
+            id: weather_back_button
+            x: 8
+            y: 16
+            width: 90
+            height: 90
+            radius: $radius
+            bg_color: $button_control_color
+            pad_all: 0
+            widgets:
+              - label:
+                  align: center
+                  text_font: $icon_font
+                  text_color: 0xFFFFFF
+                  text: $chevron_left
+            on_click:
+              - script.execute:
+                  id: nav_to_page
+                  page: "Übersicht"
+
+        - label:
+            id: weather_title_label
+            align: top_mid
+            y: 30
+            text: "Wetter"
+            text_font: roboto28_font
+            text_color: 0xFFFFFF
+
+        # Current conditions, centered above the forecast row
+        - obj:
+            id: weather_now_box
+            align: top_mid
+            y: 150
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align_cross: center
+              pad_row: 10
+            widgets:
+              - label:
+                  id: weather_now_temp_label
+                  text: "--°"
+                  text_font: roboto48_font
+                  text_color: 0xFFFFFF
+              - obj:
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: row
+                    flex_align_cross: center
+                    pad_column: 6
+                  widgets:
+                    - label:
+                        text_font: icon_font_small
+                        text_color: 0x8A8A8A
+                        text: $humidity
+                    - label:
+                        id: weather_now_hum_label
+                        text: "--%"
+                        text_font: roboto19_font
+                        text_color: 0xB0B0B0
+        - obj:
+            id: weather_forecast
             align: bottom_mid
-            y: -100
+            y: -24
             width: 90%
             height: 240
             bg_opa: TRANSP
@@ -826,20 +1749,20 @@ lvgl:
                   clickable: false
                   widgets:
                     - label:
-                        id: greeting_wx_time_0
+                        id: weather_wx_time_0
                         align: top_mid
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
-                        id: greeting_wx_icon_0
+                        id: weather_wx_icon_0
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
-                        id: greeting_wx_temp_0
+                        id: weather_wx_temp_0
                         align: bottom_mid
                         y: -20
                         text: "--°"
@@ -870,20 +1793,20 @@ lvgl:
                   clickable: false
                   widgets:
                     - label:
-                        id: greeting_wx_time_1
+                        id: weather_wx_time_1
                         align: top_mid
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
-                        id: greeting_wx_icon_1
+                        id: weather_wx_icon_1
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
-                        id: greeting_wx_temp_1
+                        id: weather_wx_temp_1
                         align: bottom_mid
                         y: -20
                         text: "--°"
@@ -914,20 +1837,20 @@ lvgl:
                   clickable: false
                   widgets:
                     - label:
-                        id: greeting_wx_time_2
+                        id: weather_wx_time_2
                         align: top_mid
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
-                        id: greeting_wx_icon_2
+                        id: weather_wx_icon_2
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
-                        id: greeting_wx_temp_2
+                        id: weather_wx_temp_2
                         align: bottom_mid
                         y: -20
                         text: "--°"
@@ -958,375 +1881,87 @@ lvgl:
                   clickable: false
                   widgets:
                     - label:
-                        id: greeting_wx_time_3
+                        id: weather_wx_time_3
                         align: top_mid
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
                         text_color: 0xB0B0B0
                     - label:
-                        id: greeting_wx_icon_3
+                        id: weather_wx_icon_3
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
                         text_color: 0xFFFFFF
                     - label:
-                        id: greeting_wx_temp_3
+                        id: weather_wx_temp_3
                         align: bottom_mid
                         y: -20
                         text: "--°"
                         text_font: roboto19_font
                         text_color: 0xFFFFFF
 
-        # Bottom-right: navigation to dashboard
-        - button:
-            id: greeting_to_dashboard_button
-            align: bottom_right
-            x: -20
-            y: -20
-            width: 220
-            height: 64
-            radius: 12
-            bg_color: 0x313131
-            pad_all: 12
-            layout:
-              type: flex
-              flex_flow: row
-              flex_align_main: center
-              flex_align_cross: center
-              pad_column: 10
-            widgets:
-              - label:
-                  text_font: icon_font_small
-                  text_color: 0xFFFFFF
-                  text: $view_dashboard
-              - label:
-                  text: "Übersicht"
-                  text_font: roboto19_font
-                  text_color: 0xFFFFFF
-            on_click:
-              - script.execute:
-                  id: nav_to_page
-                  page: "Übersicht"
-
-    - id: main_page
-      layout:
-        type: grid
-        grid_columns: [fr(1), fr(1), fr(1), fr(1)]
-        grid_rows: [fr(1), fr(1), fr(1), fr(1)]
-        pad_row: 8
-        pad_column: 8
+    # =========================================================================
+    # ENERGY PAGE — solar flow / grid views (moved off the dashboard)
+    # =========================================================================
+    # Both views and all their labels kept their original ids, so the bindings
+    # in sensors.yaml did not have to change.
+    # =========================================================================
+    - id: energy_page
       scrollbar_mode: "off"
-      scroll_dir: "hor"
       width: 100%
-      bg_color: Black
+      height: 100%
+      bg_color: 0x1E1E1E
       bg_opa: cover
-      pad_top: 51
-      pad_bottom: 8
-      pad_left: 8
-      pad_right: 8
-
+      pad_top: 8
+      pad_bottom: 16
+      pad_left: 20
+      pad_right: 20
+      layout:
+        type: flex
+        flex_flow: column
+        pad_row: 12
       widgets:
 
-        # =========================================================================
-        # BUTTON: Scenes (opens scene selector page)
-        # =========================================================================
-        - button:
-            id: scenes_button
-            styles: control
-            grid_cell_column_pos: 0
-            grid_cell_row_pos: 0
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
-            widgets:
-              - label:
-                  text_font: $icon_font
-                  align: top_left
-                  text: $lightbulb
-              - label:
-                  align: bottom_left
-                  text: "Szenen"
-            on_click:
-              - script.execute:
-                  id: nav_to_page
-                  page: "Szenen"
-
-        # =========================================================================
-        # BUTTON: 3D Printer (opens detail page)
-        # =========================================================================
-        # WHAT THIS BUTTON DOES:
-        #   Opens the printer detail page (printer_lab_page) where the user can
-        #   toggle power and see live status (power draw, print progress, state).
-        #
-        # HOW THE BUTTON KNOWS IF IT'S ACTIVE:
-        #   sensors.yaml monitors: switch.3d_drucker
-        #   When the switch is ON, this button appears "checked" (highlighted)
-        #   When the switch is OFF, this button appears unchecked (dimmed)
-        # =========================================================================
-        - button:
-            id: printer_power_button
-            styles: control
-            grid_cell_column_pos: 2
-            grid_cell_row_pos: 0
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
-            widgets:
-              # Icon (shown when OFF)
-              - label:
-                  text_font: $icon_font
-                  align: top_left
-                  id: printer_power_icon
-                  text: $printer
-              # Progress (shown when ON)
-              - obj:
-                  align: top_left
-                  id: print_progress_container
-                  height: SIZE_CONTENT
-                  width: SIZE_CONTENT
-                  clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: row
-                    flex_align_cross: end
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
-                  hidden: true
-                  widgets:
-                    - label:
-                        text_font: roboto44_font
-                        text_color: 0xFFFFFF
-                        id: print_progress_label
-                        text: "--"
-                    - label:
-                        text_font: roboto17_font
-                        text_color: 0xFFFFFF
-                        text: "%"
-              - label:
-                  align: bottom_left
-                  id: printer_power_label
-                  text: "3D Drucker"
-            on_click:
-              - script.execute:
-                  id: nav_to_page
-                  page: "Drucker"
-
-        # =========================================================================
-        # HEATING CONTROL CARD: Eve thermostat (col 1, row 0)
-        # =========================================================================
-        # Shows target temperature (large) + current temperature (small) for
-        # climate.eve_thermo_20ebp1701, with -/+ buttons that adjust the target
-        # in 0.5°C steps via the HA climate.set_temperature service.
-        # Values are wired in sensors.yaml (heating_main_current_temp,
-        # heating_main_target_temp).
-        # =========================================================================
         - obj:
-            id: heating_main_card
-            grid_cell_column_pos: 1
-            grid_cell_row_pos: 0
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
-            bg_color: $button_control_color
-            radius: $radius
+            width: 100%
+            height: 106
+            bg_opa: TRANSP
             border_width: 0
-            pad_all: 8
+            pad_all: 0
+            scrollbar_mode: "off"
             clickable: false
-            layout:
-              type: flex
-              flex_flow: column
-              flex_align_main: space_between
-              flex_align_cross: center
             widgets:
-              # Top: icon + label (left) + power on/off button (right)
-              - obj:
-                  width: 100%
-                  height: SIZE_CONTENT
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
-                  clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: row
-                    flex_align_main: space_between
-                    flex_align_cross: center
-                  widgets:
-                    - obj:
-                        width: SIZE_CONTENT
-                        height: SIZE_CONTENT
-                        bg_opa: TRANSP
-                        border_width: 0
-                        pad_all: 0
-                        clickable: false
-                        layout:
-                          type: flex
-                          flex_flow: row
-                          flex_align_cross: center
-                          pad_column: 8
-                        widgets:
-                          - label:
-                              text_font: icon_font_small
-                              text_color: 0xFFFFFF
-                              text: $thermometer
-                          - label:
-                              text: "Heizung"
-                              text_font: roboto17_font
-                              text_color: 0xFFFFFF
-                    - button:
-                        id: heating_main_power_button
-                        width: 44
-                        height: 26
-                        bg_color: 0x3A3A3A
-                        radius: 6
-                        pad_all: 0
-                        checkable: true
-                        widgets:
-                          - label:
-                              align: center
-                              text_font: icon_font_small
-                              text_color: 0xFFFFFF
-                              text: $power
-                        on_click:
-                          - homeassistant.service:
-                              service: climate.set_hvac_mode
-                              data:
-                                entity_id: climate.eve_thermo_20ebp1701
-                                hvac_mode: !lambda |-
-                                  if (id(heating_main_hvac_mode).has_state() && id(heating_main_hvac_mode).state != "off") {
-                                    return std::string("off");
-                                  }
-                                  return std::string("heat");
-
-              # Middle: target (big) + current (small)
-              - obj:
-                  width: 100%
-                  height: SIZE_CONTENT
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
-                  clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: column
-                    flex_align_cross: center
-                    pad_row: 2
-                  widgets:
-                    - label:
-                        id: heating_main_target_label
-                        text: "--.-°"
-                        text_font: roboto28_font
-                        text_color: 0xFFFFFF
-                    - label:
-                        id: heating_main_current_label
-                        text: "~ --.-°"
-                        text_font: roboto15_font
-                        text_color: 0xB0B0B0
-
-              # Bottom: -/+ buttons
-              - obj:
-                  width: 100%
-                  height: SIZE_CONTENT
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
-                  clickable: false
-                  layout:
-                    type: flex
-                    flex_flow: row
-                    flex_align_main: space_between
-                    flex_align_cross: center
-                  widgets:
-                    - button:
-                        id: heating_main_down_button
-                        width: 66
-                        height: 34
-                        bg_color: 0x3A3A3A
-                        radius: 8
-                        pad_all: 0
-                        widgets:
-                          - label:
-                              align: center
-                              text: "-"
-                              text_font: roboto28_font
-                              text_color: 0xFFFFFF
-                        on_click:
-                          - homeassistant.service:
-                              service: climate.set_temperature
-                              data:
-                                entity_id: climate.eve_thermo_20ebp1701
-                                hvac_mode: heat
-                                temperature: !lambda |-
-                                  if (id(heating_main_target_temp).has_state()) {
-                                    return id(heating_main_target_temp).state - 0.5f;
-                                  }
-                                  return 20.0f;
-                    - button:
-                        id: heating_main_up_button
-                        width: 66
-                        height: 34
-                        bg_color: 0x3A3A3A
-                        radius: 8
-                        pad_all: 0
-                        widgets:
-                          - label:
-                              align: center
-                              text: "+"
-                              text_font: roboto28_font
-                              text_color: 0xFFFFFF
-                        on_click:
-                          - homeassistant.service:
-                              service: climate.set_temperature
-                              data:
-                                entity_id: climate.eve_thermo_20ebp1701
-                                hvac_mode: heat
-                                temperature: !lambda |-
-                                  if (id(heating_main_target_temp).has_state()) {
-                                    return id(heating_main_target_temp).state + 0.5f;
-                                  }
-                                  return 20.0f;
-
-        # =========================================================================
-        # BUTTON: Vacuum robot (opens vacuum page)
-        # =========================================================================
-        - button:
-            id: vacuum_button
-            styles: control
-            grid_cell_column_pos: 3
-            grid_cell_row_pos: 0
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
-            widgets:
-              - label:
-                  text_font: $icon_font
+              - button:
+                  id: energy_back_button
                   align: top_left
-                  text: $vacuum
+                  y: 8
+                  width: 90
+                  height: 90
+                  radius: $radius
+                  bg_color: $button_control_color
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        align: center
+                        text_font: $icon_font
+                        text_color: 0xFFFFFF
+                        text: $chevron_left
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Mehr"
               - label:
-                  align: bottom_left
-                  text: "Staubi-Saugi"
-            on_click:
-              - script.execute:
-                  id: nav_to_page
-                  page: "Staubi-Saugi"
-
-        # =========================================================================
-        # INFO BOX: Solar PV system visualization (bottom-left, rows 2-3, cols 0-1)
-        # =========================================================================
-        # Two views switchable via the toggle button in the top-right corner:
-        #   View A (info_view_flow): energy flow diagram (default visible)
-        #   View B (info_view_grid): battery SOC bar + compact list of 4 metrics
-        # Direction-coded values (grid in/out, battery in/out) use a pair of
-        # stacked white/orange labels; the sensor lambdas toggle their hidden
-        # flags based on sign. Positive = orange (export / discharging),
-        # negative = white (import / charging).
-        # =========================================================================
+                  id: energy_title_label
+                  align: top_mid
+                  y: 22
+                  text: "Energie"
+                  text_font: roboto28_font
+                  text_color: 0xFFFFFF
         - obj:
             id: info_box
-            grid_cell_column_pos: 0
-            grid_cell_row_pos: 2
-            grid_cell_column_span: 2
-            grid_cell_row_span: 2
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
+            width: 100%
+            flex_grow: 1
             styles: control
             clickable: false
             pad_all: 0
@@ -1821,7 +2456,220 @@ lvgl:
                         hidden: !lambda 'return id(info_view_flow_hidden);'
                     - lambda: 'id(info_view_flow_hidden) = !id(info_view_flow_hidden);'
 
+    # =========================================================================
+    # MORE PAGE — placeholder hub for everything that has no dashboard tile.
+    # Add further tiles to the grid below as new entities arrive.
+    # =========================================================================
+    - id: more_page
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x1E1E1E
+      bg_opa: cover
+      pad_all: 8
+      widgets:
+        - button:
+            id: more_back_button
+            x: 8
+            y: 16
+            width: 90
+            height: 90
+            radius: $radius
+            bg_color: $button_control_color
+            pad_all: 0
+            widgets:
+              - label:
+                  align: center
+                  text_font: $icon_font
+                  text_color: 0xFFFFFF
+                  text: $chevron_left
+            on_click:
+              - script.execute:
+                  id: nav_to_page
+                  page: "Übersicht"
 
+        - label:
+            id: more_title_label
+            align: top_mid
+            y: 30
+            text: "Mehr"
+            text_font: roboto28_font
+            text_color: 0xFFFFFF
+
+        - obj:
+            id: more_tile_grid
+            align: top_mid
+            y: 130
+            width: 96%
+            height: 540
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "off"
+            clickable: false
+            layout:
+              type: grid
+              grid_columns: [fr(1), fr(1)]
+              grid_rows: [content, content, content]
+              pad_row: 12
+              pad_column: 12
+            widgets:
+              - button:
+                  id: more_energy_button
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 0
+                  grid_cell_x_align: stretch
+                  grid_cell_y_align: stretch
+                  width: 100%
+                  height: 120
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 8
+                        widgets:
+                          - label:
+                              text_font: $icon_font
+                              text_color: 0xFFFFFF
+                              text: $solar_power
+                          - label:
+                              text: "Energie"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Energie"
+              - button:
+                  id: more_heating_button
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 0
+                  grid_cell_x_align: stretch
+                  grid_cell_y_align: stretch
+                  width: 100%
+                  height: 120
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 8
+                        widgets:
+                          - label:
+                              text_font: $icon_font
+                              text_color: 0xFFFFFF
+                              text: $thermometer
+                          - label:
+                              text: "Heizung"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Heizung"
+              - button:
+                  id: more_scenes_button
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 1
+                  grid_cell_x_align: stretch
+                  grid_cell_y_align: stretch
+                  width: 100%
+                  height: 120
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 8
+                        widgets:
+                          - label:
+                              text_font: $icon_font
+                              text_color: 0xFFFFFF
+                              text: $lightbulb
+                          - label:
+                              text: "Szenen"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Szenen"
+              - button:
+                  id: more_vacuum_button
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 1
+                  grid_cell_x_align: stretch
+                  grid_cell_y_align: stretch
+                  width: 100%
+                  height: 120
+                  pad_all: 0
+                  radius: $radius
+                  bg_color: $button_control_color
+                  widgets:
+                    - obj:
+                        align: center
+                        width: SIZE_CONTENT
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          flex_align_cross: center
+                          pad_row: 8
+                        widgets:
+                          - label:
+                              text_font: $icon_font
+                              text_color: 0xFFFFFF
+                              text: $vacuum
+                          - label:
+                              text: "Staubi-Saugi"
+                              text_font: roboto17_font
+                              text_color: 0xFFFFFF
+                  on_click:
+                    - script.execute:
+                        id: nav_to_page
+                        page: "Staubi-Saugi"
 
     - id: heating_lab_page
       layout:

@@ -39,21 +39,35 @@
 # =============================================================================
 
 sensor:
+  # ===========================================================================
+  # DASHBOARD STATUS LINE — indoor / outdoor climate
+  # ===========================================================================
+  # Each value gets its own label in main_status_row (no longer a single
+  # combined "out° / in°" string, which the old top-layer status bar used).
   - platform: homeassistant
     entity_id: sensor.eve_room_af92_temperature
     id: nini_room_temp
     on_value:
       - lvgl.label.update:
-          id: temperatures
-          text: !lambda |-
-            char buf[32];
-            int out = (int)round(id(outdoor_temperature).state);
-            int ind = (int)round(x);
-            snprintf(buf, sizeof(buf), "%s° / %s°",
-              (out == 2147483647 || out < -100 || out > 100) ? "-" : std::to_string(out).c_str(),
-              (ind == 2147483647 || ind < -100 || ind > 100) ? "-" : std::to_string(ind).c_str()
-            );
-            return std::string(buf);
+          id: main_status_in_value
+          text:
+            format: "%.1f°"
+            args: [ 'x' ]
+
+  - platform: homeassistant
+    entity_id: sensor.eve_room_af92_humidity
+    id: indoor_humidity
+    on_value:
+      - lvgl.label.update:
+          id: main_status_hum_value
+          text:
+            format: "%.0f%%"
+            args: [ 'x' ]
+      - lvgl.label.update:
+          id: weather_now_hum_label
+          text:
+            format: "%.0f%%"
+            args: [ 'x' ]
 
   - platform: homeassistant
     entity_id: weather.forecast_home
@@ -61,16 +75,15 @@ sensor:
     id: outdoor_temperature
     on_value:
       - lvgl.label.update:
-          id: temperatures
-          text: !lambda |-
-            char buf[32];
-            int out = (int)round(x);
-            int ind = (int)round(id(nini_room_temp).state);
-            snprintf(buf, sizeof(buf), "%s° / %s°",
-              (out == 2147483647 || out < -100 || out > 100) ? "-" : std::to_string(out).c_str(),
-              (ind == 2147483647 || ind < -100 || ind > 100) ? "-" : std::to_string(ind).c_str()
-            );
-            return std::string(buf);
+          id: main_status_out_value
+          text:
+            format: "%.0f°"
+            args: [ 'x' ]
+      - lvgl.label.update:
+          id: weather_now_temp_label
+          text:
+            format: "%.0f°"
+            args: [ 'x' ]
 
 
   # ===========================================================================
@@ -177,18 +190,27 @@ sensor:
   # ===========================================================================
   # HEATING (main_page Eve thermostat card)
   # ===========================================================================
-  # Feeds the heating_main_card on main_page. The target sensor's state is
-  # also read by the -/+ button on_click lambdas to compute the new setpoint.
+  # Feeds the Heizung tab of the dashboard stack widget. The target sensor's
+  # state is also read by the -/+ button on_click lambdas to compute the new
+  # setpoint. The progress bar works in tenths of a degree (150..250) because
+  # LVGL bars are integer-valued.
   - platform: homeassistant
     entity_id: climate.eve_thermo_20ebp1701
     id: heating_main_current_temp
     attribute: current_temperature
     on_value:
       - lvgl.label.update:
-          id: heating_main_current_label
+          id: main_heat_current_label
           text:
-            format: "~%.1f°"
+            format: "Ist %.1f°"
             args: [ 'x' ]
+      - lvgl.bar.update:
+          id: main_heat_bar
+          value: !lambda |-
+            int v = (int)roundf(x * 10.0f);
+            if (v < 150) v = 150;
+            if (v > 250) v = 250;
+            return v;
 
   - platform: homeassistant
     entity_id: climate.eve_thermo_20ebp1701
@@ -196,10 +218,51 @@ sensor:
     attribute: temperature
     on_value:
       - lvgl.label.update:
-          id: heating_main_target_label
+          id: main_heat_target_label
           text:
             format: "%.1f°"
             args: [ 'x' ]
+      - lvgl.label.update:
+          id: main_heat_goal_label
+          text:
+            format: "Ziel %.1f°"
+            args: [ 'x' ]
+
+  # ===========================================================================
+  # FAN — speed + sleep timer (Ventilator tab)
+  # ===========================================================================
+  # The slider is kept in sync from here, so a change made in HA or on the
+  # fan itself is reflected on screen.
+  - platform: homeassistant
+    entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+    attribute: percentage
+    id: fan_main_percentage
+    on_value:
+      - lvgl.label.update:
+          id: main_fan_speed_label
+          text:
+            format: "%.0f%%"
+            args: [ 'x' ]
+      - lvgl.slider.update:
+          id: main_fan_speed_slider
+          value: !lambda |-
+            int v = (int)roundf(x);
+            if (v < 1) v = 1;
+            if (v > 100) v = 100;
+            return v;
+
+  # Off-delay in minutes (0..480). 0 means "no timer running".
+  - platform: homeassistant
+    entity_id: number.dmaker_de_454884949_p33_off_delay_time_p_3_1
+    id: fan_main_off_delay
+    on_value:
+      - lvgl.label.update:
+          id: main_fan_timer_label
+          text: !lambda |-
+            if (x < 1.0f) return std::string("Aus");
+            char b[16];
+            snprintf(b, sizeof(b), "%.0f min", x);
+            return std::string(b);
 
   - platform: homeassistant
     entity_id: sensor.3d_drucker_power
@@ -224,14 +287,14 @@ sensor:
   # ===========================================================================
   # SOLAR PV SYSTEM — Sonnenbatterie sensors feeding the info_box visualization
   # ===========================================================================
-  # Battery SOC (%): updates the status-bar percentage and both view's SOC labels
-  # plus the bar widget in the 2x2 grid view.
+  # Battery SOC (%): updates the dashboard status line and both view's SOC
+  # labels plus the bar widget in the 2x2 grid view on the energy page.
   - platform: homeassistant
     entity_id: sensor.sonnenbatterie_217105_state_battery_percentage_user
     id: home_battery_soc
     on_value:
       - lvgl.label.update:
-          id: battery_percentage
+          id: main_status_batt_value
           text:
             format: "%.0f%%"
             args: [ 'x' ]
@@ -260,6 +323,11 @@ sensor:
           text:
             format: "%.0f W"
             args: [ 'x' ]
+      - lvgl.label.update:
+          id: main_status_pv_value
+          text:
+            format: "%.0f W"
+            args: [ 'x' ]
       - lvgl.widget.update:
           id: flow_center_solar_arrow
           hidden: !lambda 'return x <= 0.0f;'
@@ -277,6 +345,11 @@ sensor:
             args: [ 'x' ]
       - lvgl.label.update:
           id: grid_house_value
+          text:
+            format: "%.0f W"
+            args: [ 'x' ]
+      - lvgl.label.update:
+          id: main_status_house_value
           text:
             format: "%.0f W"
             args: [ 'x' ]
@@ -371,40 +444,40 @@ sensor:
           hidden: !lambda 'return fabsf(x) < 0.5f;'
 
   # ===========================================================================
-  # GREETING PAGE — hourly forecast temperatures
+  # WEATHER PAGE — hourly forecast temperatures
   # ===========================================================================
   # Four slots fed by HA template sensors. See plan file for the matching HA
   # template config (Abschnitt 8).
   - platform: homeassistant
     entity_id: sensor.forecast_slot_0_temp
-    id: greeting_wx_temp_0_state
+    id: weather_wx_temp_0_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_temp_0
+          id: weather_wx_temp_0
           text: { format: "%.0f°", args: ['x'] }
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_1_temp
-    id: greeting_wx_temp_1_state
+    id: weather_wx_temp_1_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_temp_1
+          id: weather_wx_temp_1
           text: { format: "%.0f°", args: ['x'] }
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_2_temp
-    id: greeting_wx_temp_2_state
+    id: weather_wx_temp_2_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_temp_2
+          id: weather_wx_temp_2
           text: { format: "%.0f°", args: ['x'] }
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_3_temp
-    id: greeting_wx_temp_3_state
+    id: weather_wx_temp_3_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_temp_3
+          id: weather_wx_temp_3
           text: { format: "%.0f°", args: ['x'] }
 
 # =============================================================================
@@ -421,42 +494,42 @@ text_sensor:
   # bytes from icons.yaml. Unknown conditions fall back to cloudy.
   - platform: homeassistant
     entity_id: sensor.forecast_slot_0_time
-    id: greeting_wx_time_0_state
+    id: weather_wx_time_0_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_time_0
+          id: weather_wx_time_0
           text: !lambda 'return x;'
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_1_time
-    id: greeting_wx_time_1_state
+    id: weather_wx_time_1_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_time_1
+          id: weather_wx_time_1
           text: !lambda 'return x;'
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_2_time
-    id: greeting_wx_time_2_state
+    id: weather_wx_time_2_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_time_2
+          id: weather_wx_time_2
           text: !lambda 'return x;'
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_3_time
-    id: greeting_wx_time_3_state
+    id: weather_wx_time_3_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_time_3
+          id: weather_wx_time_3
           text: !lambda 'return x;'
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_0_condition
-    id: greeting_wx_condition_0_state
+    id: weather_wx_condition_0_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_icon_0
+          id: weather_wx_icon_0
           text: !lambda |-
             std::string c = x;
             if (c == "sunny")           return std::string("\xF3\xB0\x96\x99");
@@ -476,10 +549,10 @@ text_sensor:
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_1_condition
-    id: greeting_wx_condition_1_state
+    id: weather_wx_condition_1_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_icon_1
+          id: weather_wx_icon_1
           text: !lambda |-
             std::string c = x;
             if (c == "sunny")           return std::string("\xF3\xB0\x96\x99");
@@ -499,10 +572,10 @@ text_sensor:
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_2_condition
-    id: greeting_wx_condition_2_state
+    id: weather_wx_condition_2_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_icon_2
+          id: weather_wx_icon_2
           text: !lambda |-
             std::string c = x;
             if (c == "sunny")           return std::string("\xF3\xB0\x96\x99");
@@ -522,10 +595,10 @@ text_sensor:
 
   - platform: homeassistant
     entity_id: sensor.forecast_slot_3_condition
-    id: greeting_wx_condition_3_state
+    id: weather_wx_condition_3_state
     on_value:
       - lvgl.label.update:
-          id: greeting_wx_icon_3
+          id: weather_wx_icon_3
           text: !lambda |-
             std::string c = x;
             if (c == "sunny")           return std::string("\xF3\xB0\x96\x99");
@@ -543,17 +616,45 @@ text_sensor:
             if (c == "windy")           return std::string("\xF3\xB0\x96\x9D");
             return std::string("\xF3\xB0\x96\x90");
 
-  # Eve thermostat HVAC mode. Drives the heating power button on main_page:
-  # any non-"off" mode -> button shows checked (orange). The button's on_click
-  # also reads this value to decide which mode to send next.
+  # Eve thermostat HVAC mode. Drives the Heizung tab's state chip (any non-"off"
+  # mode -> checked/orange) plus the Auto/Manuell/Aus segment row. The chip's
+  # on_click also reads this value to decide which mode to send next.
   - platform: homeassistant
     entity_id: climate.eve_thermo_20ebp1701
     id: heating_main_hvac_mode
     on_value:
       - lvgl.widget.update:
-          id: heating_main_power_button
+          id: main_heat_state_chip
           state:
             checked: !lambda 'return x != std::string("off");'
+      - lvgl.label.update:
+          id: main_heat_state_label
+          text: !lambda 'return x != std::string("off") ? std::string("an") : std::string("aus");'
+      - lvgl.widget.update:
+          id: main_heat_mode_auto
+          state:
+            checked: !lambda 'return x == std::string("auto");'
+      - lvgl.widget.update:
+          id: main_heat_mode_manual
+          state:
+            checked: !lambda 'return x == std::string("heat");'
+      - lvgl.widget.update:
+          id: main_heat_mode_off
+          state:
+            checked: !lambda 'return x == std::string("off");'
+
+  # Fan preset. The entity spells its modes "Direkte brise" / "Natürliche brise"
+  # (lowercase b); the chip shows a shortened label and cycles between the two.
+  - platform: homeassistant
+    entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+    attribute: preset_mode
+    id: fan_main_preset
+    on_value:
+      - lvgl.label.update:
+          id: main_fan_preset_label
+          text: !lambda |-
+            if (x == "Natürliche brise") return std::string("Natürlich");
+            return std::string("Direkt");
 
   - platform: homeassistant
     entity_id: sensor.3d_drucker_druckstatus
@@ -585,10 +686,6 @@ binary_sensor:
     trigger_on_initial_state: true
     on_state:
       then:
-        - lvgl.widget.update:
-            id: printer_power_button
-            state:
-              checked: !lambda return x;
         - lvgl.widget.update:
             id: printer_lab_power_button
             state:
@@ -626,3 +723,34 @@ binary_sensor:
               - lvgl.label.update:
                   id: printer_lab_status_label
                   text: "Offline"
+
+  # ===========================================================================
+  # FAN (Ventilator tab of the dashboard stack widget)
+  # ===========================================================================
+  # Xiaomi Smart Standing Fan 2 Pro. on_state fires for power and oscillation;
+  # the numeric speed and the sleep timer live in the sensor: block above.
+  - platform: homeassistant
+    id: fan_main_power
+    entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - lvgl.widget.update:
+            id: main_fan_state_chip
+            state:
+              checked: !lambda return x;
+        - lvgl.label.update:
+            id: main_fan_state_label
+            text: !lambda 'return x ? std::string("an") : std::string("aus");'
+
+  - platform: homeassistant
+    id: fan_main_oscillating
+    entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+    attribute: oscillating
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - lvgl.widget.update:
+            id: main_fan_osc_chip
+            state:
+              checked: !lambda return x;

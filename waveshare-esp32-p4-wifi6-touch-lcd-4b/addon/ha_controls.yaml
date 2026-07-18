@@ -7,8 +7,8 @@
 #   Select  "Default-Seite"       -> page used on boot, idle revert, display-off revert
 #   Switch  "Revert bei Idle"     -> enables the idle timer (interval lives in lvgl.yaml)
 #   Switch  "Revert bei Display aus" -> enables revert when backlight goes off
+#   Switch  "Mitteilungen einklappen" -> hide the notification row while it is empty
 #   Number  "Idle-Zeit (min)"     -> threshold for the idle revert
-#   Text    "Begrüßung Name"      -> name shown on the greeting page greeting line
 #
 # All controls use restore_value/restore_mode so the user's last setting survives
 # reboot. The two selects share the same options list, kept in sync manually.
@@ -19,12 +19,14 @@ select:
     name: "Aktive Seite"
     id: active_page_select
     options:
-      - "Begrüßung"
       - "Übersicht"
       - "Szenen"
       - "Heizung"
       - "Drucker"
       - "Staubi-Saugi"
+      - "Wetter"
+      - "Energie"
+      - "Mehr"
     initial_option: "Übersicht"
     optimistic: true
     restore_value: false
@@ -37,13 +39,15 @@ select:
     name: "Default-Seite"
     id: default_page_select
     options:
-      - "Begrüßung"
       - "Übersicht"
       - "Szenen"
       - "Heizung"
       - "Drucker"
       - "Staubi-Saugi"
-    initial_option: "Begrüßung"
+      - "Wetter"
+      - "Energie"
+      - "Mehr"
+    initial_option: "Übersicht"
     optimistic: true
     restore_value: true
 
@@ -60,6 +64,19 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
 
+  # When on, the dashboard's notification row disappears while both slots are
+  # empty and the stack card grows into the freed space. When off, the row keeps
+  # its place and shows a "Keine Mitteilungen" placeholder instead.
+  - platform: template
+    name: "Mitteilungen einklappen"
+    id: collapse_notify
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - script.execute: notif_render
+    on_turn_off:
+      - script.execute: notif_render
+
 number:
   - platform: template
     name: "Idle-Zeit (min)"
@@ -72,16 +89,3 @@ number:
     restore_value: true
     unit_of_measurement: "min"
     mode: box
-
-text:
-  - platform: template
-    name: "Begrüßung Name"
-    id: greeter_name
-    initial_value: "Nicklas"
-    min_length: 0
-    max_length: 32
-    optimistic: true
-    restore_value: true
-    mode: text
-    on_value:
-      - script.execute: time_update

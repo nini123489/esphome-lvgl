@@ -16,12 +16,10 @@ light:
     on_turn_off:
       # Reset to the HA-configured default page when the screen goes dark, so
       # the chosen view is what greets the user when the screen comes back.
-      # Two gates:
-      #   1. notification overlay open -> skip (don't interrupt reading)
-      #   2. "Revert bei Display aus" switch off -> skip (user disabled it)
+      # Gated on the "Revert bei Display aus" switch (user can disable it).
       - if:
           condition:
-            lambda: 'return id(display_off_revert_enabled).state && !id(notif_panel_open);'
+            lambda: 'return id(display_off_revert_enabled).state;'
           then:
             - script.execute: nav_to_default_page
       - lvgl.pause:
