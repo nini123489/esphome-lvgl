@@ -758,7 +758,7 @@ lvgl:
                                     widgets:
                                       - label:
                                           text_font: icon_font_small
-                                          text_color: 0xE06A2A
+                                          text_color: 0xD98E45
                                           text: $thermometer
                                       - label:
                                           id: main_heat_title_label
@@ -774,6 +774,10 @@ lvgl:
                                     pad_all: 0
                                     radius: 17
                                     bg_color: 0x2A2A2A
+                                    text_color: 0x8A8A8A
+                                    checked:
+                                      bg_color: 0x1E3226
+                                      text_color: 0x7FBF9A
                                     checkable: true
                                     clickable: false
                                     widgets:
@@ -907,7 +911,7 @@ lvgl:
                                     value: 150
                                     bg_color: 0x2A2A2A
                                     indicator:
-                                      bg_color: 0xE06A2A
+                                      bg_color: 0xD98E45
 
                           # Big power toggle. Replaces the former
                           # Auto/Manuell/Aus segment row: one target, easier to
@@ -920,6 +924,10 @@ lvgl:
                               pad_all: 0
                               radius: $radius
                               bg_color: 0x2A2A2A
+                              text_color: 0xC8C8C8
+                              checked:
+                                bg_color: 0x3A2A18
+                                text_color: 0xD98E45
                               checkable: true
                               widgets:
                                 - obj:
@@ -1007,7 +1015,7 @@ lvgl:
                                     widgets:
                                       - label:
                                           text_font: icon_font_small
-                                          text_color: 0x5AA9E6
+                                          text_color: 0x6FA3C4
                                           text: $fan
                                       - label:
                                           text: "Ventilator"
@@ -1081,7 +1089,7 @@ lvgl:
                                     value: 1
                                     bg_color: $slider_background_color
                                     indicator:
-                                      bg_color: $button_on_color
+                                      bg_color: 0x6FA3C4
                                     knob:
                                       bg_color: $slider_knob_color
                                     on_release:
@@ -1113,8 +1121,11 @@ lvgl:
                                     flex_grow: 1
                                     height: 48
                                     pad_all: 0
-                                    radius: 10
+                                    radius: 16
                                     bg_color: 0x2A2A2A
+                                    checked:
+                                      bg_color: 0x1C2A36
+                                      text_color: 0x6FA3C4
                                     checkable: true
                                     widgets:
                                       - obj:
@@ -1158,7 +1169,7 @@ lvgl:
                                     flex_grow: 1
                                     height: 48
                                     pad_all: 0
-                                    radius: 10
+                                    radius: 16
                                     bg_color: 0x2A2A2A
                                     widgets:
                                       - label:
@@ -1309,7 +1320,7 @@ lvgl:
                               widgets:
                                 - label:
                                     text_font: icon_font_small
-                                    text_color: 0xFFC845
+                                    text_color: 0x9B8AC4
                                     text: $lightbulb
                                 - label:
                                     text: "Szenen"
@@ -1381,8 +1392,15 @@ lvgl:
                         width: 76
                         height: 76
                         pad_all: 0
-                        radius: 16
-                        bg_color: 0x3A3A3A
+                        radius: 26
+                        # Inactive tabs carry no background of their own, only
+                        # a dimmed icon; the active one gets a muted tint.
+                        bg_opa: TRANSP
+                        text_color: 0x6E6E6E
+                        checked:
+                          bg_color: 0x3A2A18
+                          bg_opa: cover
+                          text_color: 0xD98E45
                         checkable: true
                         state:
                           checked: true
@@ -1390,7 +1408,6 @@ lvgl:
                           - label:
                               align: center
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
                               text: $thermometer
                         on_click:
                           - lvgl.widget.update:
@@ -1419,8 +1436,15 @@ lvgl:
                         width: 76
                         height: 76
                         pad_all: 0
-                        radius: 16
-                        bg_color: 0x3A3A3A
+                        radius: 26
+                        # Inactive tabs carry no background of their own, only
+                        # a dimmed icon; the active one gets a muted tint.
+                        bg_opa: TRANSP
+                        text_color: 0x6E6E6E
+                        checked:
+                          bg_color: 0x1C2A36
+                          bg_opa: cover
+                          text_color: 0x6FA3C4
                         checkable: true
                         state:
                           checked: false
@@ -1428,7 +1452,6 @@ lvgl:
                           - label:
                               align: center
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
                               text: $fan
                         on_click:
                           - lvgl.widget.update:
@@ -1457,8 +1480,15 @@ lvgl:
                         width: 76
                         height: 76
                         pad_all: 0
-                        radius: 16
-                        bg_color: 0x3A3A3A
+                        radius: 26
+                        # Inactive tabs carry no background of their own, only
+                        # a dimmed icon; the active one gets a muted tint.
+                        bg_opa: TRANSP
+                        text_color: 0x6E6E6E
+                        checked:
+                          bg_color: 0x2B2438
+                          bg_opa: cover
+                          text_color: 0x9B8AC4
                         checkable: true
                         state:
                           checked: false
@@ -1466,7 +1496,6 @@ lvgl:
                           - label:
                               align: center
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
                               text: $lightbulb
                         on_click:
                           - lvgl.widget.update:
