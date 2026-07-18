@@ -60,13 +60,6 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
-  # Locally held heating setpoint. The UI edits this immediately so -/+ and the
-  # arc respond without waiting for the Home Assistant round trip; the value is
-  # pushed to HA only once the user has stopped adjusting (see heat_send_target).
-  - id: heat_target_local
-    type: float
-    restore_value: false
-    initial_value: '20.0f'
   # Info-Box view toggle: false = energy flow diagram visible (default), true = 2x2 grid view visible
   - id: info_view_flow_hidden
     type: bool
@@ -139,56 +132,6 @@ script:
       - script.execute:
           id: nav_to_page
           page: !lambda 'return id(default_page_select).current_option().c_str();'
-
-  # ---------------------------------------------------------------------------
-  # HEATING SETPOINT — optimistic local edit, debounced push to HA
-  # ---------------------------------------------------------------------------
-  # Pressing -/+ or dragging the arc used to call climate.set_temperature right
-  # away and only redraw once HA echoed the new value back, which read as a
-  # ~1s lag. Now the display updates from heat_target_local instantly and the
-  # service call happens once, after the user has been idle for 2.5s.
-  - id: heat_set_target
-    mode: restart
-    parameters:
-      value: float
-    then:
-      - lambda: |-
-          float v = value;
-          if (v < 10.0f) v = 10.0f;
-          if (v > 32.0f) v = 32.0f;
-          // Snap to the thermostat's 0.5 degree grid.
-          v = roundf(v * 2.0f) / 2.0f;
-          id(heat_target_local) = v;
-      - lvgl.label.update:
-          id: main_heat_target_label
-          # Formatted from integers on purpose. This runs on every arc event
-          # while dragging, and newlib's %f path allocates through _Balloc --
-          # the previous build faulted exactly there under drag load. The value
-          # is always a multiple of 0.5, so tenths are exact.
-          text: !lambda |-
-            int tenths = (int) lroundf(id(heat_target_local) * 10.0f);
-            char b[16];
-            snprintf(b, sizeof(b), "%d.%d°", tenths / 10, abs(tenths % 10));
-            return std::string(b);
-      - lvgl.arc.update:
-          id: main_heat_arc
-          value: !lambda 'return (int) roundf(id(heat_target_local) * 2.0f);'
-      - script.execute: heat_send_target
-
-  # Debounce: restarted on every adjustment, so only the last one is sent.
-  - id: heat_send_target
-    mode: restart
-    then:
-      - delay: 2500ms
-      - homeassistant.service:
-          service: climate.set_temperature
-          data:
-            entity_id: climate.eve_thermo_20ebp1701
-            hvac_mode: heat
-          data_template:
-            temperature: "{{ temp }}"
-          variables:
-            temp: !lambda 'return id(heat_target_local);'
 
   - id: notif_push
     mode: queued
@@ -930,9 +873,19 @@ lvgl:
                                           text_font: roboto28_font
                                           text_color: $text_primary
                                     on_click:
-                                      - script.execute:
-                                          id: heat_set_target
-                                          value: !lambda 'return id(heat_target_local) - 0.5f;'
+                                      - homeassistant.service:
+                                          service: climate.set_temperature
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: heat
+                                          data_template:
+                                            temperature: "{{ temp }}"
+                                          variables:
+                                            temp: !lambda |-
+                                              if (id(heating_main_target_temp).has_state()) {
+                                                return id(heating_main_target_temp).state - 0.5f;
+                                              }
+                                              return 20.0f;
 
                                 # Arc plus its centred labels. An arc takes no
                                 # child widgets, so both live in this wrapper
@@ -972,9 +925,15 @@ lvgl:
                                           # update calls) sends no event, so
                                           # this cannot feed back on itself.
                                           on_value:
-                                            - script.execute:
-                                                id: heat_set_target
-                                                value: !lambda 'return (float) x / 2.0f;'
+                                            - homeassistant.service:
+                                                service: climate.set_temperature
+                                                data:
+                                                  entity_id: climate.eve_thermo_20ebp1701
+                                                  hvac_mode: heat
+                                                data_template:
+                                                  temperature: "{{ temp }}"
+                                                variables:
+                                                  temp: !lambda 'return (float) x / 2.0f;'
                                       - label:
                                           id: main_heat_target_label
                                           align: center
@@ -1006,9 +965,19 @@ lvgl:
                                           text_font: roboto28_font
                                           text_color: $text_primary
                                     on_click:
-                                      - script.execute:
-                                          id: heat_set_target
-                                          value: !lambda 'return id(heat_target_local) + 0.5f;'
+                                      - homeassistant.service:
+                                          service: climate.set_temperature
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: heat
+                                          data_template:
+                                            temperature: "{{ temp }}"
+                                          variables:
+                                            temp: !lambda |-
+                                              if (id(heating_main_target_temp).has_state()) {
+                                                return id(heating_main_target_temp).state + 0.5f;
+                                              }
+                                              return 20.0f;
 
                           # Power toggle, full width
                           - button:
