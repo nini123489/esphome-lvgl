@@ -131,7 +131,7 @@ script:
     then:
       - script.execute:
           id: nav_to_page
-          page: !lambda 'return id(default_page_select).state;'
+          page: !lambda 'return id(default_page_select).current_option().c_str();'
 
   - id: notif_push
     mode: queued
