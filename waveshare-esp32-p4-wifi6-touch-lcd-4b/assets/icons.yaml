@@ -42,6 +42,7 @@ font:
       "\U000F0592",  # mdi-weather-hail
       "\U000F059D",  # mdi-weather-windy
       "\U000F0208",  # mdi-view-dashboard
+      "\U000F0A75",  # mdi-solar-power (More page energy tile)
       ]
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_small
@@ -71,6 +72,7 @@ font:
       "\U000F058E",  # mdi-water-percent
       "\U000F1903",  # mdi-home-lightning-bolt
       "\U000F01D8",  # mdi-dots-horizontal
+      "\U000F0599",  # mdi-weather-sunny (status line, outdoor temp)
       ]
 
 # Map icons to names

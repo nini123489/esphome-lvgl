@@ -684,6 +684,7 @@ lvgl:
             border_width: 0
             pad_all: 0
             scrollbar_mode: "off"
+            scrollable: false
             clickable: false
             layout:
               type: flex
@@ -692,14 +693,20 @@ lvgl:
             widgets:
 
               # ---------------- content area (no layout: children stack) -----
+              # No padding here: the children are height/width 100%, and any
+              # padding would make them overflow and turn this into a scrollable
+              # container. Tapping a button near the bottom would then scroll it
+              # into view and push the title out of the card. Each tab child
+              # carries its own pad_all instead, and scrolling is off entirely.
               - obj:
                   id: main_stack_content
                   flex_grow: 1
                   height: 100%
                   bg_opa: TRANSP
                   border_width: 0
-                  pad_all: 14
+                  pad_all: 0
                   scrollbar_mode: "off"
+                  scrollable: false
                   clickable: false
                   widgets:
                     # ===== TAB: Heizung (climate.eve_thermo_20ebp1701) =====
@@ -709,8 +716,9 @@ lvgl:
                         height: 100%
                         bg_opa: TRANSP
                         border_width: 0
-                        pad_all: 0
+                        pad_all: 14
                         scrollbar_mode: "off"
+                        scrollable: false
                         clickable: false
                         layout:
                           type: flex
@@ -990,8 +998,9 @@ lvgl:
                         height: 100%
                         bg_opa: TRANSP
                         border_width: 0
-                        pad_all: 0
+                        pad_all: 14
                         scrollbar_mode: "off"
+                        scrollable: false
                         hidden: true
                         clickable: false
                         layout:
@@ -1308,8 +1317,9 @@ lvgl:
                         height: 100%
                         bg_opa: TRANSP
                         border_width: 0
-                        pad_all: 0
+                        pad_all: 14
                         scrollbar_mode: "off"
+                        scrollable: false
                         hidden: true
                         clickable: false
                         layout:
