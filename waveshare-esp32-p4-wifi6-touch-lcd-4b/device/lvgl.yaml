@@ -369,7 +369,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
       pad_top: 14
       pad_bottom: 16
@@ -418,10 +418,14 @@ lvgl:
         - obj:
             id: main_status_row
             width: 100%
-            height: 40
-            bg_opa: TRANSP
+            height: 44
+            bg_color: $status_bg_color
+            bg_opa: cover
+            radius: 22
             border_width: 0
             pad_all: 0
+            pad_left: 18
+            pad_right: 18
             scrollbar_mode: "off"
             clickable: false
             layout:
@@ -773,7 +777,7 @@ lvgl:
                                     height: 34
                                     pad_all: 0
                                     radius: 17
-                                    bg_color: 0x2A2A2A
+                                    bg_color: $control_inner_color
                                     text_color: 0x8A8A8A
                                     checked:
                                       bg_color: 0x1E3226
@@ -808,7 +812,7 @@ lvgl:
                                     height: 76
                                     pad_all: 0
                                     radius: 38
-                                    bg_color: 0x3A3A3A
+                                    bg_color: $control_inner_color
                                     widgets:
                                       - label:
                                           align: center
@@ -840,7 +844,7 @@ lvgl:
                                     height: 76
                                     pad_all: 0
                                     radius: 38
-                                    bg_color: 0x3A3A3A
+                                    bg_color: $control_inner_color
                                     widgets:
                                       - label:
                                           align: center
@@ -909,7 +913,7 @@ lvgl:
                                     min_value: 150
                                     max_value: 250
                                     value: 150
-                                    bg_color: 0x2A2A2A
+                                    bg_color: $control_inner_color
                                     indicator:
                                       bg_color: 0xD98E45
 
@@ -923,7 +927,7 @@ lvgl:
                               height: 72
                               pad_all: 0
                               radius: $radius
-                              bg_color: 0x2A2A2A
+                              bg_color: $control_inner_color
                               text_color: 0xC8C8C8
                               checked:
                                 bg_color: 0x3A2A18
@@ -1027,7 +1031,7 @@ lvgl:
                                     height: 34
                                     pad_all: 0
                                     radius: 17
-                                    bg_color: 0x2A2A2A
+                                    bg_color: $control_inner_color
                                     checkable: true
                                     widgets:
                                       - label:
@@ -1121,8 +1125,8 @@ lvgl:
                                     flex_grow: 1
                                     height: 48
                                     pad_all: 0
-                                    radius: 16
-                                    bg_color: 0x2A2A2A
+                                    radius: 24
+                                    bg_color: $control_inner_color
                                     checked:
                                       bg_color: 0x1C2A36
                                       text_color: 0x6FA3C4
@@ -1169,8 +1173,8 @@ lvgl:
                                     flex_grow: 1
                                     height: 48
                                     pad_all: 0
-                                    radius: 16
-                                    bg_color: 0x2A2A2A
+                                    radius: 24
+                                    bg_color: $control_inner_color
                                     widgets:
                                       - label:
                                           id: main_fan_preset_label
@@ -1233,7 +1237,7 @@ lvgl:
                                           height: 48
                                           pad_all: 0
                                           radius: 24
-                                          bg_color: 0x3A3A3A
+                                          bg_color: $control_inner_color
                                           widgets:
                                             - label:
                                                 align: center
@@ -1265,7 +1269,7 @@ lvgl:
                                           height: 48
                                           pad_all: 0
                                           radius: 24
-                                          bg_color: 0x3A3A3A
+                                          bg_color: $control_inner_color
                                           widgets:
                                             - label:
                                                 align: center
@@ -1332,7 +1336,7 @@ lvgl:
                               height: 100
                               pad_all: 0
                               radius: $radius
-                              bg_color: 0x2A2A2A
+                              bg_color: $control_inner_color
                               widgets:
                                 - label:
                                     align: center
@@ -1350,7 +1354,7 @@ lvgl:
                               height: 100
                               pad_all: 0
                               radius: $radius
-                              bg_color: 0x2A2A2A
+                              bg_color: $control_inner_color
                               widgets:
                                 - label:
                                     align: center
@@ -1370,7 +1374,7 @@ lvgl:
                   id: main_stack_tabs
                   width: 96
                   height: 100%
-                  bg_color: 0x262626
+                  bg_color: $stack_side_bg_color
                   bg_opa: cover
                   radius: $radius
                   border_width: 2
@@ -1392,7 +1396,7 @@ lvgl:
                         width: 76
                         height: 76
                         pad_all: 0
-                        radius: 26
+                        radius: 30
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -1436,7 +1440,7 @@ lvgl:
                         width: 76
                         height: 76
                         pad_all: 0
-                        radius: 26
+                        radius: 30
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -1480,7 +1484,7 @@ lvgl:
                         width: 76
                         height: 76
                         pad_all: 0
-                        radius: 26
+                        radius: 30
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -1653,7 +1657,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
       pad_all: 8
       widgets:
@@ -1923,7 +1927,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
       pad_top: 8
       pad_bottom: 16
@@ -2450,7 +2454,7 @@ lvgl:
                   align: top_right
                   x: -8
                   y: 8
-                  bg_color: 0x3A3A3A
+                  bg_color: $control_inner_color
                   radius: 20
                   pad_all: 0
                   widgets:
@@ -2476,7 +2480,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
       pad_all: 8
       widgets:
@@ -2690,7 +2694,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
 
       widgets:
@@ -2741,7 +2745,7 @@ lvgl:
                     arc_color: 0x3A3A3A
                     arc_width: 0
                   knob:
-                    bg_color: 0x3A3A3A
+                    bg_color: $control_inner_color
 
               # Delta arc between current and target temperatures
               - arc:
@@ -2960,7 +2964,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
 
       widgets:
@@ -3120,7 +3124,7 @@ lvgl:
                         width: 500px
                         height: 280px
                         align: center
-                        bg_color: 0x2A2A2A
+                        bg_color: $control_inner_color
                         bg_opa: cover
                         border_width: 2
                         border_color: 0xE06A2A
@@ -3180,7 +3184,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
 
       widgets:
@@ -3302,7 +3306,7 @@ lvgl:
       scrollbar_mode: "off"
       width: 100%
       height: 100%
-      bg_color: 0x1E1E1E
+      bg_color: $page_bg_color
       bg_opa: cover
 
       widgets:
