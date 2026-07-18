@@ -161,9 +161,14 @@ script:
           id(heat_target_local) = v;
       - lvgl.label.update:
           id: main_heat_target_label
+          # Formatted from integers on purpose. This runs on every arc event
+          # while dragging, and newlib's %f path allocates through _Balloc --
+          # the previous build faulted exactly there under drag load. The value
+          # is always a multiple of 0.5, so tenths are exact.
           text: !lambda |-
+            int tenths = (int) lroundf(id(heat_target_local) * 10.0f);
             char b[16];
-            snprintf(b, sizeof(b), "%.1f°", id(heat_target_local));
+            snprintf(b, sizeof(b), "%d.%d°", tenths / 10, abs(tenths % 10));
             return std::string(b);
       - lvgl.arc.update:
           id: main_heat_arc
