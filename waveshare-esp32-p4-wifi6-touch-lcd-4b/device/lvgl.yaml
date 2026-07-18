@@ -60,6 +60,13 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # Locally held heating setpoint. The UI edits this immediately so -/+ and the
+  # arc respond without waiting for the Home Assistant round trip; the value is
+  # pushed to HA only once the user has stopped adjusting (see heat_send_target).
+  - id: heat_target_local
+    type: float
+    restore_value: false
+    initial_value: '20.0f'
   # Info-Box view toggle: false = energy flow diagram visible (default), true = 2x2 grid view visible
   - id: info_view_flow_hidden
     type: bool
@@ -132,6 +139,51 @@ script:
       - script.execute:
           id: nav_to_page
           page: !lambda 'return id(default_page_select).current_option().c_str();'
+
+  # ---------------------------------------------------------------------------
+  # HEATING SETPOINT — optimistic local edit, debounced push to HA
+  # ---------------------------------------------------------------------------
+  # Pressing -/+ or dragging the arc used to call climate.set_temperature right
+  # away and only redraw once HA echoed the new value back, which read as a
+  # ~1s lag. Now the display updates from heat_target_local instantly and the
+  # service call happens once, after the user has been idle for 2.5s.
+  - id: heat_set_target
+    mode: restart
+    parameters:
+      value: float
+    then:
+      - lambda: |-
+          float v = value;
+          if (v < 10.0f) v = 10.0f;
+          if (v > 32.0f) v = 32.0f;
+          // Snap to the thermostat's 0.5 degree grid.
+          v = roundf(v * 2.0f) / 2.0f;
+          id(heat_target_local) = v;
+      - lvgl.label.update:
+          id: main_heat_target_label
+          text: !lambda |-
+            char b[16];
+            snprintf(b, sizeof(b), "%.1f°", id(heat_target_local));
+            return std::string(b);
+      - lvgl.arc.update:
+          id: main_heat_arc
+          value: !lambda 'return (int) roundf(id(heat_target_local) * 2.0f);'
+      - script.execute: heat_send_target
+
+  # Debounce: restarted on every adjustment, so only the last one is sent.
+  - id: heat_send_target
+    mode: restart
+    then:
+      - delay: 2500ms
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: climate.eve_thermo_20ebp1701
+            hvac_mode: heat
+          data_template:
+            temperature: "{{ temp }}"
+          variables:
+            temp: !lambda 'return id(heat_target_local);'
 
   - id: notif_push
     mode: queued
@@ -398,6 +450,7 @@ lvgl:
               flex_flow: row
               flex_align_main: space_between
               flex_align_cross: center
+              flex_align_track: center
             widgets:
               - label:
                   id: main_clock_label
@@ -424,11 +477,6 @@ lvgl:
             radius: 22
             border_width: 0
             pad_all: 0
-            # Contents are centred purely geometrically: every item is exactly
-            # as tall as the icon font's line box (30) and the row centres them
-            # in its 44px. status_row_nudge is the one knob for fine-tuning
-            # against the panel; see theme/button.yaml.
-            pad_top: $status_row_nudge
             pad_left: 12
             pad_right: 12
             scrollbar_mode: "off"
@@ -438,6 +486,7 @@ lvgl:
               flex_flow: row
               flex_align_main: space_between
               flex_align_cross: center
+              flex_align_track: center
             widgets:
               - obj:
                   width: SIZE_CONTENT
@@ -452,6 +501,7 @@ lvgl:
                     flex_flow: row
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 4
                   widgets:
                     - label:
@@ -486,6 +536,7 @@ lvgl:
                     flex_flow: row
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 4
                   widgets:
                     - label:
@@ -520,6 +571,7 @@ lvgl:
                     flex_flow: row
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 4
                   widgets:
                     - label:
@@ -554,6 +606,7 @@ lvgl:
                     flex_flow: row
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 4
                   widgets:
                     - label:
@@ -588,6 +641,7 @@ lvgl:
                     flex_flow: row
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 4
                   widgets:
                     - label:
@@ -622,6 +676,7 @@ lvgl:
                     flex_flow: row
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 4
                   widgets:
                     - label:
@@ -679,6 +734,7 @@ lvgl:
                     type: flex
                     flex_flow: row
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 10
                   widgets:
                     - label:
@@ -716,6 +772,7 @@ lvgl:
                     type: flex
                     flex_flow: row
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 10
                   widgets:
                     - label:
@@ -822,6 +879,7 @@ lvgl:
                                 type: flex
                                 flex_flow: row
                                 flex_align_cross: center
+                                flex_align_track: center
                                 pad_column: 8
                               widgets:
                                 - label:
@@ -849,6 +907,7 @@ lvgl:
                                 flex_flow: row
                                 flex_align_main: space_evenly
                                 flex_align_cross: center
+                                flex_align_track: center
                               widgets:
                                 - button:
                                     id: main_heat_down_button
@@ -866,19 +925,9 @@ lvgl:
                                           text_font: roboto28_font
                                           text_color: $text_primary
                                     on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_temperature
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: heat
-                                          data_template:
-                                            temperature: "{{ temp }}"
-                                          variables:
-                                            temp: !lambda |-
-                                              if (id(heating_main_target_temp).has_state()) {
-                                                return id(heating_main_target_temp).state - 0.5f;
-                                              }
-                                              return 20.0f;
+                                      - script.execute:
+                                          id: heat_set_target
+                                          value: !lambda 'return id(heat_target_local) - 0.5f;'
 
                                 # Arc plus its centred labels. An arc takes no
                                 # child widgets, so both live in this wrapper
@@ -918,15 +967,9 @@ lvgl:
                                           # update calls) sends no event, so
                                           # this cannot feed back on itself.
                                           on_value:
-                                            - homeassistant.service:
-                                                service: climate.set_temperature
-                                                data:
-                                                  entity_id: climate.eve_thermo_20ebp1701
-                                                  hvac_mode: heat
-                                                data_template:
-                                                  temperature: "{{ temp }}"
-                                                variables:
-                                                  temp: !lambda 'return (float) x / 2.0f;'
+                                            - script.execute:
+                                                id: heat_set_target
+                                                value: !lambda 'return (float) x / 2.0f;'
                                       - label:
                                           id: main_heat_target_label
                                           align: center
@@ -958,19 +1001,9 @@ lvgl:
                                           text_font: roboto28_font
                                           text_color: $text_primary
                                     on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_temperature
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: heat
-                                          data_template:
-                                            temperature: "{{ temp }}"
-                                          variables:
-                                            temp: !lambda |-
-                                              if (id(heating_main_target_temp).has_state()) {
-                                                return id(heating_main_target_temp).state + 0.5f;
-                                              }
-                                              return 20.0f;
+                                      - script.execute:
+                                          id: heat_set_target
+                                          value: !lambda 'return id(heat_target_local) + 0.5f;'
 
                           # Power toggle, full width
                           - button:
@@ -1002,6 +1035,7 @@ lvgl:
                                       type: flex
                                       flex_flow: row
                                       flex_align_cross: center
+                                      flex_align_track: center
                                       pad_column: 10
                                     widgets:
                                       - label:
@@ -1011,6 +1045,10 @@ lvgl:
                                           id: main_heat_power_label
                                           text: "Ausgeschaltet"
                                           text_font: roboto19_font
+                                          # Explicitly near-white: inheriting
+                                          # the button's green when checked put
+                                          # green text on a green fill.
+                                          text_color: $text_primary
                               on_click:
                                 - homeassistant.service:
                                     service: climate.set_hvac_mode
@@ -1056,6 +1094,7 @@ lvgl:
                                 flex_flow: row
                                 flex_align_main: space_between
                                 flex_align_cross: center
+                                flex_align_track: center
                               widgets:
                                 - obj:
                                     width: SIZE_CONTENT
@@ -1069,6 +1108,7 @@ lvgl:
                                       type: flex
                                       flex_flow: row
                                       flex_align_cross: center
+                                      flex_align_track: center
                                       pad_column: 8
                                     widgets:
                                       - label:
@@ -1128,6 +1168,7 @@ lvgl:
                                       flex_flow: row
                                       flex_align_main: space_between
                                       flex_align_cross: center
+                                      flex_align_track: center
                                     widgets:
                                       - label:
                                           text: "Geschwindigkeit"
@@ -1199,6 +1240,7 @@ lvgl:
                                             type: flex
                                             flex_flow: row
                                             flex_align_cross: center
+                                            flex_align_track: center
                                             pad_column: 8
                                           widgets:
                                             - label:
@@ -1266,6 +1308,7 @@ lvgl:
                                 flex_flow: row
                                 flex_align_main: space_between
                                 flex_align_cross: center
+                                flex_align_track: center
                               widgets:
                                 - label:
                                     text: "Timer"
@@ -1283,6 +1326,7 @@ lvgl:
                                       type: flex
                                       flex_flow: row
                                       flex_align_cross: center
+                                      flex_align_track: center
                                       pad_column: 12
                                     widgets:
                                       - button:
@@ -1378,6 +1422,7 @@ lvgl:
                                 type: flex
                                 flex_flow: row
                                 flex_align_cross: center
+                                flex_align_track: center
                                 pad_column: 8
                               widgets:
                                 - label:
@@ -1447,6 +1492,7 @@ lvgl:
                     flex_flow: column
                     flex_align_main: center
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_row: 10
                   widgets:
                     - button:
@@ -1622,6 +1668,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 6
                         widgets:
                           - label:
@@ -1659,6 +1706,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 6
                         widgets:
                           - label:
@@ -1696,6 +1744,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 6
                         widgets:
                           - label:
@@ -1769,6 +1818,7 @@ lvgl:
               type: flex
               flex_flow: column
               flex_align_cross: center
+              flex_align_track: center
               pad_row: 10
             widgets:
               - label:
@@ -1788,6 +1838,7 @@ lvgl:
                     type: flex
                     flex_flow: row
                     flex_align_cross: center
+                    flex_align_track: center
                     pad_column: 6
                   widgets:
                     - label:
@@ -1816,6 +1867,7 @@ lvgl:
               flex_flow: row
               flex_align_main: space_evenly
               flex_align_cross: center
+              flex_align_track: center
             widgets:
               # Slot 0
               - obj:
@@ -2081,6 +2133,7 @@ lvgl:
                           flex_flow: column
                           flex_align_main: center
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 4
                         widgets:
                           - label:
@@ -2114,6 +2167,7 @@ lvgl:
                           flex_flow: column
                           flex_align_main: center
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 4
                         widgets:
                           - label:
@@ -2135,6 +2189,7 @@ lvgl:
                                 type: flex
                                 flex_flow: row
                                 flex_align_cross: center
+                                flex_align_track: center
                               widgets:
                                 - label:
                                     id: flow_grid_value_white
@@ -2165,6 +2220,7 @@ lvgl:
                           flex_flow: column
                           flex_align_main: center
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 4
                         widgets:
                           - label:
@@ -2186,6 +2242,7 @@ lvgl:
                                 type: flex
                                 flex_flow: row
                                 flex_align_cross: center
+                                flex_align_track: center
                               widgets:
                                 - label:
                                     id: flow_batt_value_white
@@ -2216,6 +2273,7 @@ lvgl:
                           flex_flow: column
                           flex_align_main: center
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 4
                         widgets:
                           - label:
@@ -2325,6 +2383,7 @@ lvgl:
                                 flex_flow: row
                                 flex_align_main: space_between
                                 flex_align_cross: center
+                                flex_align_track: center
                               widgets:
                                 - label:
                                     text: "Akku"
@@ -2358,6 +2417,7 @@ lvgl:
                           type: flex
                           flex_flow: row
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_column: 12
                         widgets:
                           - label:
@@ -2386,6 +2446,7 @@ lvgl:
                           type: flex
                           flex_flow: row
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_column: 12
                         widgets:
                           - label:
@@ -2414,6 +2475,7 @@ lvgl:
                           type: flex
                           flex_flow: row
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_column: 12
                         widgets:
                           - label:
@@ -2436,6 +2498,7 @@ lvgl:
                                 type: flex
                                 flex_flow: row
                                 flex_align_cross: center
+                                flex_align_track: center
                                 pad_column: 4
                               widgets:
                                 - label:
@@ -2466,6 +2529,7 @@ lvgl:
                           type: flex
                           flex_flow: row
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_column: 12
                         widgets:
                           - label:
@@ -2488,6 +2552,7 @@ lvgl:
                                 type: flex
                                 flex_flow: row
                                 flex_align_cross: center
+                                flex_align_track: center
                                 pad_column: 4
                               widgets:
                                 - label:
@@ -2619,6 +2684,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 8
                         widgets:
                           - label:
@@ -2658,6 +2724,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 8
                         widgets:
                           - label:
@@ -2697,6 +2764,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 8
                         widgets:
                           - label:
@@ -2736,6 +2804,7 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_cross: center
+                          flex_align_track: center
                           pad_row: 8
                         widgets:
                           - label:
@@ -2946,6 +3015,7 @@ lvgl:
                     type: flex
                     flex_flow: row
                     flex_align_cross: center
+                    flex_align_track: center
                   widgets:
                     - label:
                         id: heating_lab_current_icon
@@ -3119,6 +3189,7 @@ lvgl:
                     type: flex
                     flex_flow: row
                     flex_align_cross: center
+                    flex_align_track: center
                   widgets:
                     - label:
                         id: printer_lab_power_label

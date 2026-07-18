@@ -210,19 +210,29 @@ sensor:
     id: heating_main_target_temp
     attribute: temperature
     on_value:
-      - lvgl.label.update:
-          id: main_heat_target_label
-          text:
-            format: "%.1f°"
-            args: [ 'x' ]
-      # Arc scale is degrees x2 (20..64 = 10..32 degC), clamped to that range.
-      - lvgl.arc.update:
-          id: main_heat_arc
-          value: !lambda |-
-            int v = (int)roundf(x * 2.0f);
-            if (v < 20) v = 20;
-            if (v > 64) v = 64;
-            return v;
+      # Only adopt HA's value while the user is not mid-adjustment -- otherwise
+      # the echo of an earlier setpoint would yank the display back while they
+      # are still pressing. heat_send_target runs from the first press until
+      # 2.5s after the last one.
+      - if:
+          condition:
+            not:
+              script.is_running: heat_send_target
+          then:
+            - lambda: 'id(heat_target_local) = x;'
+            - lvgl.label.update:
+                id: main_heat_target_label
+                text:
+                  format: "%.1f°"
+                  args: [ 'x' ]
+            # Arc scale is degrees x2 (20..64 = 10..32 degC), clamped.
+            - lvgl.arc.update:
+                id: main_heat_arc
+                value: !lambda |-
+                  int v = (int)roundf(x * 2.0f);
+                  if (v < 20) v = 20;
+                  if (v > 64) v = 64;
+                  return v;
 
   # ===========================================================================
   # FAN — speed + sleep timer (Ventilator tab)

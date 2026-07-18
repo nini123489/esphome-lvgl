@@ -30,10 +30,6 @@ substitutions:
   divider_tabs: "0x333333"
   divider_status: "0x2A2A2A"
 
-  # Vertical fine-tuning of the status line contents. The entries are centred
-  # geometrically (fixed 30px items in a 44px row); this is the single knob if
-  # they still read as off-centre on the panel. Positive = move down.
-  status_row_nudge: "0"
 
   # Type
   text_primary: "0xE8E8E6"         # clock, temperatures, titles
