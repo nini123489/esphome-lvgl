@@ -28,6 +28,15 @@ esp32:
     sdkconfig_options:
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
       CONFIG_SPIRAM_RODATA: "y"
+      # The main task runs the ESPHome loop, and with it LVGL's event dispatch,
+      # the scripts, the lambdas and every label update. The IDF default of 3584
+      # bytes is not enough for that chain: newlib's full printf (float support
+      # is compiled in, see CONFIG_NEWLIB_NANO_FORMAT) needs 1.5-2.5 kB of stack
+      # on its own, so the deepest frame -- always somewhere inside printf --
+      # ran off the end. That showed up as faults in _Balloc and _svfprintf_r a
+      # couple of seconds after boot, once Home Assistant pushed its initial
+      # states and the whole sensor -> script -> lvgl -> printf chain ran.
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
 
 
 # -----------------------------------------------------------------------------
