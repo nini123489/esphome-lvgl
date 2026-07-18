@@ -235,7 +235,7 @@ interval:
                 then:
                   - lvgl.widget.update:
                       id: voice_overlay
-                      border_color: 0xE06A2A
+                      border_color: $accent_orange
             - if:
                 condition:
                   lambda: 'return id(voice_pulse_step) == 1;'

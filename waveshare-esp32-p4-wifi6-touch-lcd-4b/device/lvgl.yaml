@@ -318,7 +318,7 @@ lvgl:
           bg_color: 0x000000
           bg_opa: 75%
           border_width: 8
-          border_color: 0xE06A2A
+          border_color: $accent_orange
           radius: 0
           pad_all: 32
           hidden: true
@@ -328,14 +328,14 @@ lvgl:
                 id: voice_overlay_state
                 text: "Höre zu…"
                 text_font: roboto36_font
-                text_color: 0xFFFFFF
+                text_color: $text_primary
                 align: top_mid
                 y: 60
             - label:
                 id: voice_overlay_stt
                 text: ""
                 text_font: roboto19_font
-                text_color: 0xB0B0B0
+                text_color: $text_tertiary
                 align: center
                 y: -20
                 text_align: center
@@ -345,7 +345,7 @@ lvgl:
                 id: voice_overlay_tts
                 text: ""
                 text_font: roboto19_font
-                text_color: 0xFFFFFF
+                text_color: $text_primary
                 align: center
                 y: 80
                 text_align: center
@@ -403,12 +403,12 @@ lvgl:
                   id: main_clock_label
                   text: "--:--"
                   text_font: roboto44_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
               - label:
                   id: main_date_label
                   text: "-"
                   text_font: roboto19_font
-                  text_color: 0xB0B0B0
+                  text_color: $text_tertiary
 
         # ---------------------------------------------------------------------
         # STATUS LINE — passive info row, no frame, muted colors.
@@ -424,8 +424,11 @@ lvgl:
             radius: 22
             border_width: 0
             pad_all: 0
-            pad_left: 18
-            pad_right: 18
+            # pad_top nudges the row's contents down: MDI glyphs sit high in
+            # their line box, so box-centering alone reads as a few px too high.
+            pad_top: 2
+            pad_left: 12
+            pad_right: 12
             scrollbar_mode: "off"
             clickable: false
             layout:
@@ -436,7 +439,7 @@ lvgl:
             widgets:
               - obj:
                   width: SIZE_CONTENT
-                  height: SIZE_CONTENT
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -445,21 +448,32 @@ lvgl:
                   layout:
                     type: flex
                     flex_flow: row
+                    flex_align_main: center
                     flex_align_cross: center
                     pad_column: 4
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $accent_amber
                         text: $wx_sunny
                     - label:
                         id: main_status_out_value
                         text: "--°"
                         text_font: roboto15_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
+              - obj:
+                  width: 2
+                  height: 22
+                  bg_color: $divider_status
+                  bg_opa: cover
+                  radius: 1
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: SIZE_CONTENT
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -468,21 +482,32 @@ lvgl:
                   layout:
                     type: flex
                     flex_flow: row
+                    flex_align_main: center
                     flex_align_cross: center
                     pad_column: 4
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $text_inactive
                         text: $thermometer
                     - label:
                         id: main_status_in_value
                         text: "--°"
                         text_font: roboto15_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
+              - obj:
+                  width: 2
+                  height: 22
+                  bg_color: $divider_status
+                  bg_opa: cover
+                  radius: 1
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: SIZE_CONTENT
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -491,21 +516,32 @@ lvgl:
                   layout:
                     type: flex
                     flex_flow: row
+                    flex_align_main: center
                     flex_align_cross: center
                     pad_column: 4
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $accent_blue
                         text: $humidity
                     - label:
                         id: main_status_hum_value
                         text: "--%"
                         text_font: roboto15_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
+              - obj:
+                  width: 2
+                  height: 22
+                  bg_color: $divider_status
+                  bg_opa: cover
+                  radius: 1
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: SIZE_CONTENT
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -514,21 +550,32 @@ lvgl:
                   layout:
                     type: flex
                     flex_flow: row
+                    flex_align_main: center
                     flex_align_cross: center
                     pad_column: 4
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $accent_amber
                         text: $solar_power
                     - label:
                         id: main_status_pv_value
                         text: "-- W"
                         text_font: roboto15_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
+              - obj:
+                  width: 2
+                  height: 22
+                  bg_color: $divider_status
+                  bg_opa: cover
+                  radius: 1
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: SIZE_CONTENT
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -537,21 +584,32 @@ lvgl:
                   layout:
                     type: flex
                     flex_flow: row
+                    flex_align_main: center
                     flex_align_cross: center
                     pad_column: 4
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $accent_blue
                         text: $house_power
                     - label:
                         id: main_status_house_value
                         text: "-- W"
                         text_font: roboto15_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
+              - obj:
+                  width: 2
+                  height: 22
+                  bg_color: $divider_status
+                  bg_opa: cover
+                  radius: 1
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: SIZE_CONTENT
+                  height: 100%
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -560,18 +618,19 @@ lvgl:
                   layout:
                     type: flex
                     flex_flow: row
+                    flex_align_main: center
                     flex_align_cross: center
                     pad_column: 4
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $accent_green
                         text: $battery
                     - label:
                         id: main_status_batt_value
                         text: "--%"
                         text_font: roboto15_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
 
         # ---------------------------------------------------------------------
         # NOTIFICATIONS — two passive rows, newest first.
@@ -583,9 +642,15 @@ lvgl:
             id: main_notif_box
             width: 100%
             height: 100
-            bg_opa: TRANSP
+            bg_color: $status_bg_color
+            bg_opa: cover
+            radius: 22
             border_width: 0
             pad_all: 0
+            pad_left: 16
+            pad_right: 16
+            pad_top: 6
+            pad_bottom: 6
             scrollbar_mode: "off"
             clickable: false
             layout:
@@ -597,7 +662,7 @@ lvgl:
                   id: main_notif_empty_label
                   text: "Keine Mitteilungen"
                   text_font: roboto17_font
-                  text_color: 0x707070
+                  text_color: $text_inactive
               - obj:
                   id: main_notif_slot_0
                   width: 100%
@@ -617,20 +682,20 @@ lvgl:
                     - label:
                         id: main_notif_icon_0
                         text_font: icon_font_small
-                        text_color: 0xB0B0B0
+                        text_color: $accent_amber
                         text: $bell
                     - label:
                         id: main_notif_text_0
                         text: ""
                         text_font: roboto17_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_secondary
                         flex_grow: 1
                         long_mode: dot
                     - label:
                         id: main_notif_time_0
                         text: ""
                         text_font: roboto15_font
-                        text_color: 0x8A8A8A
+                        text_color: $text_timestamp
                   on_click:
                     - script.execute:
                         id: notif_dismiss
@@ -654,20 +719,20 @@ lvgl:
                     - label:
                         id: main_notif_icon_1
                         text_font: icon_font_small
-                        text_color: 0xB0B0B0
+                        text_color: $accent_amber
                         text: $bell
                     - label:
                         id: main_notif_text_1
                         text: ""
                         text_font: roboto17_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_secondary
                         flex_grow: 1
                         long_mode: dot
                     - label:
                         id: main_notif_time_1
                         text: ""
                         text_font: roboto15_font
-                        text_color: 0x8A8A8A
+                        text_color: $text_timestamp
                   on_click:
                     - script.execute:
                         id: notif_dismiss
@@ -685,7 +750,13 @@ lvgl:
             flex_grow: 1
             styles: control
             radius: $radius
-            border_width: 0
+            # clip_corner makes the card clip its children to its own rounded
+            # shape. That is what gives the tab column rounded corners on the
+            # right only: the column itself is drawn with radius 0, its left
+            # edge stays flush against the content area.
+            clip_corner: true
+            border_width: 1
+            border_color: $border_card
             pad_all: 0
             scrollbar_mode: "off"
             scrollable: false
@@ -762,13 +833,13 @@ lvgl:
                                     widgets:
                                       - label:
                                           text_font: icon_font_small
-                                          text_color: 0xD98E45
+                                          text_color: $accent_orange
                                           text: $thermometer
                                       - label:
                                           id: main_heat_title_label
                                           text: "Heizung Wohnzimmer"
                                           text_font: roboto17_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                 - button:
                                     # Status badge only — switching happens on
                                     # the big power button at the bottom.
@@ -778,10 +849,10 @@ lvgl:
                                     pad_all: 0
                                     radius: 17
                                     bg_color: $control_inner_color
-                                    text_color: 0x8A8A8A
+                                    text_color: $text_inactive
                                     checked:
-                                      bg_color: 0x1E3226
-                                      text_color: 0x7FBF9A
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
                                     checkable: true
                                     clickable: false
                                     widgets:
@@ -813,12 +884,14 @@ lvgl:
                                     pad_all: 0
                                     radius: 38
                                     bg_color: $control_inner_color
+                                    border_width: 1
+                                    border_color: $border_circle
                                     widgets:
                                       - label:
                                           align: center
                                           text: "-"
                                           text_font: roboto28_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                     on_click:
                                       - homeassistant.service:
                                           service: climate.set_temperature
@@ -837,7 +910,7 @@ lvgl:
                                     id: main_heat_target_label
                                     text: "--.-°"
                                     text_font: roboto36_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - button:
                                     id: main_heat_up_button
                                     width: 76
@@ -845,12 +918,14 @@ lvgl:
                                     pad_all: 0
                                     radius: 38
                                     bg_color: $control_inner_color
+                                    border_width: 1
+                                    border_color: $border_circle
                                     widgets:
                                       - label:
                                           align: center
                                           text: "+"
                                           text_font: roboto28_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                     on_click:
                                       - homeassistant.service:
                                           service: climate.set_temperature
@@ -900,12 +975,12 @@ lvgl:
                                           id: main_heat_current_label
                                           text: "Ist --.-°"
                                           text_font: roboto15_font
-                                          text_color: 0xB0B0B0
+                                          text_color: $text_tertiary
                                       - label:
                                           id: main_heat_goal_label
                                           text: "Ziel --.-°"
                                           text_font: roboto15_font
-                                          text_color: 0xB0B0B0
+                                          text_color: $text_tertiary
                                 - bar:
                                     id: main_heat_bar
                                     width: 100%
@@ -915,7 +990,7 @@ lvgl:
                                     value: 150
                                     bg_color: $control_inner_color
                                     indicator:
-                                      bg_color: 0xD98E45
+                                      bg_color: $accent_orange
 
                           # Big power toggle. Replaces the former
                           # Auto/Manuell/Aus segment row: one target, easier to
@@ -928,10 +1003,10 @@ lvgl:
                               pad_all: 0
                               radius: $radius
                               bg_color: $control_inner_color
-                              text_color: 0xC8C8C8
+                              text_color: $text_secondary
                               checked:
-                                bg_color: 0x3A2A18
-                                text_color: 0xD98E45
+                                bg_color: $tint_green
+                                text_color: $accent_green
                               checkable: true
                               widgets:
                                 - obj:
@@ -951,13 +1026,11 @@ lvgl:
                                     widgets:
                                       - label:
                                           text_font: icon_font_small
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                           text: $power
                                       - label:
                                           id: main_heat_power_label
                                           text: "Aus"
-                                          text_font: roboto19_font
-                                          text_color: 0xFFFFFF
                               on_click:
                                 - homeassistant.service:
                                     service: climate.set_hvac_mode
@@ -1019,12 +1092,12 @@ lvgl:
                                     widgets:
                                       - label:
                                           text_font: icon_font_small
-                                          text_color: 0x6FA3C4
+                                          text_color: $accent_blue
                                           text: $fan
                                       - label:
                                           text: "Ventilator"
                                           text_font: roboto17_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                 - button:
                                     id: main_fan_state_chip
                                     width: 76
@@ -1078,12 +1151,12 @@ lvgl:
                                       - label:
                                           text: "Geschwindigkeit"
                                           text_font: roboto15_font
-                                          text_color: 0xB0B0B0
+                                          text_color: $text_tertiary
                                       - label:
                                           id: main_fan_speed_label
                                           text: "--%"
                                           text_font: roboto17_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                 - slider:
                                     id: main_fan_speed_slider
                                     width: 100%
@@ -1093,7 +1166,7 @@ lvgl:
                                     value: 1
                                     bg_color: $slider_background_color
                                     indicator:
-                                      bg_color: 0x6FA3C4
+                                      bg_color: $accent_blue
                                     knob:
                                       bg_color: $slider_knob_color
                                     on_release:
@@ -1128,8 +1201,8 @@ lvgl:
                                     radius: 24
                                     bg_color: $control_inner_color
                                     checked:
-                                      bg_color: 0x1C2A36
-                                      text_color: 0x6FA3C4
+                                      bg_color: $tint_blue
+                                      text_color: $accent_blue
                                     checkable: true
                                     widgets:
                                       - obj:
@@ -1149,12 +1222,12 @@ lvgl:
                                           widgets:
                                             - label:
                                                 text_font: icon_font_small
-                                                text_color: 0xFFFFFF
+                                                text_color: $text_primary
                                                 text: $swap_horizontal
                                             - label:
                                                 text: "Schwenken"
                                                 text_font: roboto15_font
-                                                text_color: 0xFFFFFF
+                                                text_color: $text_primary
                                     on_click:
                                       - homeassistant.service:
                                           service: fan.oscillate
@@ -1181,7 +1254,7 @@ lvgl:
                                           align: center
                                           text: "Direkt"
                                           text_font: roboto15_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                     on_click:
                                       - homeassistant.service:
                                           service: fan.set_preset_mode
@@ -1216,7 +1289,7 @@ lvgl:
                                 - label:
                                     text: "Timer"
                                     text_font: roboto15_font
-                                    text_color: 0xB0B0B0
+                                    text_color: $text_tertiary
                                 - obj:
                                     width: SIZE_CONTENT
                                     height: SIZE_CONTENT
@@ -1238,12 +1311,14 @@ lvgl:
                                           pad_all: 0
                                           radius: 24
                                           bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
                                           widgets:
                                             - label:
                                                 align: center
                                                 text: "-"
                                                 text_font: roboto19_font
-                                                text_color: 0xFFFFFF
+                                                text_color: $text_primary
                                           on_click:
                                             - homeassistant.service:
                                                 service: number.set_value
@@ -1262,7 +1337,7 @@ lvgl:
                                           id: main_fan_timer_label
                                           text: "Aus"
                                           text_font: roboto17_font
-                                          text_color: 0xFFFFFF
+                                          text_color: $text_primary
                                       - button:
                                           id: main_fan_timer_up
                                           width: 48
@@ -1270,12 +1345,14 @@ lvgl:
                                           pad_all: 0
                                           radius: 24
                                           bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
                                           widgets:
                                             - label:
                                                 align: center
                                                 text: "+"
                                                 text_font: roboto19_font
-                                                text_color: 0xFFFFFF
+                                                text_color: $text_primary
                                           on_click:
                                             - homeassistant.service:
                                                 service: number.set_value
@@ -1324,12 +1401,12 @@ lvgl:
                               widgets:
                                 - label:
                                     text_font: icon_font_small
-                                    text_color: 0x9B8AC4
+                                    text_color: $accent_amber
                                     text: $lightbulb
                                 - label:
                                     text: "Szenen"
                                     text_font: roboto17_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                           - button:
                               id: main_scene_abendlicht_button
                               width: 100%
@@ -1342,7 +1419,7 @@ lvgl:
                                     align: center
                                     text: "Abendlicht"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                               on_click:
                                 - homeassistant.service:
                                     service: scene.turn_on
@@ -1360,7 +1437,7 @@ lvgl:
                                     align: center
                                     text: "Licht aus"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                               on_click:
                                 - homeassistant.service:
                                     service: scene.turn_on
@@ -1376,10 +1453,10 @@ lvgl:
                   height: 100%
                   bg_color: $stack_side_bg_color
                   bg_opa: cover
-                  radius: $radius
+                  radius: 0
                   border_width: 2
                   border_side: LEFT
-                  border_color: 0x3A3A3A
+                  border_color: $divider_tabs
                   pad_all: 8
                   scrollbar_mode: "off"
                   scrollable: false
@@ -1400,18 +1477,18 @@ lvgl:
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
-                        text_color: 0x6E6E6E
+                        text_color: $tab_icon_inactive
                         checked:
-                          bg_color: 0x3A2A18
+                          bg_color: $tint_amber
                           bg_opa: cover
-                          text_color: 0xD98E45
+                          text_color: $accent_orange
                         checkable: true
                         state:
                           checked: true
                         widgets:
                           - label:
                               align: center
-                              text_font: $icon_font
+                              text_font: icon_font_small
                               text: $thermometer
                         on_click:
                           - lvgl.widget.update:
@@ -1444,18 +1521,18 @@ lvgl:
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
-                        text_color: 0x6E6E6E
+                        text_color: $tab_icon_inactive
                         checked:
-                          bg_color: 0x1C2A36
+                          bg_color: $tint_blue
                           bg_opa: cover
-                          text_color: 0x6FA3C4
+                          text_color: $accent_blue
                         checkable: true
                         state:
                           checked: false
                         widgets:
                           - label:
                               align: center
-                              text_font: $icon_font
+                              text_font: icon_font_small
                               text: $fan
                         on_click:
                           - lvgl.widget.update:
@@ -1488,18 +1565,18 @@ lvgl:
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
-                        text_color: 0x6E6E6E
+                        text_color: $tab_icon_inactive
                         checked:
-                          bg_color: 0x2B2438
+                          bg_color: $tint_amber
                           bg_opa: cover
-                          text_color: 0x9B8AC4
+                          text_color: $accent_amber
                         checkable: true
                         state:
                           checked: false
                         widgets:
                           - label:
                               align: center
-                              text_font: $icon_font
+                              text_font: icon_font_small
                               text: $lightbulb
                         on_click:
                           - lvgl.widget.update:
@@ -1547,7 +1624,9 @@ lvgl:
                   height: 96
                   pad_all: 0
                   radius: $radius
-                  bg_color: $button_control_color
+                  bg_color: $quick_button_color
+                  border_width: 1
+                  border_color: $border_button
                   widgets:
                     - obj:
                         align: center
@@ -1566,12 +1645,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $wx_partly_cloudy
                           - label:
                               text: "Wetter"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_secondary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -1582,7 +1661,9 @@ lvgl:
                   height: 96
                   pad_all: 0
                   radius: $radius
-                  bg_color: $button_control_color
+                  bg_color: $quick_button_color
+                  border_width: 1
+                  border_color: $border_button
                   widgets:
                     - obj:
                         align: center
@@ -1601,12 +1682,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $printer
                           - label:
                               text: "3D Drucker"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_secondary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -1617,7 +1698,9 @@ lvgl:
                   height: 96
                   pad_all: 0
                   radius: $radius
-                  bg_color: $button_control_color
+                  bg_color: $quick_button_color
+                  border_width: 1
+                  border_color: $border_button
                   widgets:
                     - obj:
                         align: center
@@ -1636,12 +1719,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $dots_horizontal
                           - label:
                               text: "Mehr"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_secondary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -1674,7 +1757,7 @@ lvgl:
               - label:
                   align: center
                   text_font: $icon_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
                   text: $chevron_left
             on_click:
               - script.execute:
@@ -1687,7 +1770,7 @@ lvgl:
             y: 30
             text: "Wetter"
             text_font: roboto28_font
-            text_color: 0xFFFFFF
+            text_color: $text_primary
 
         # Current conditions, centered above the forecast row
         - obj:
@@ -1711,7 +1794,7 @@ lvgl:
                   id: weather_now_temp_label
                   text: "--°"
                   text_font: roboto48_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
               - obj:
                   width: SIZE_CONTENT
                   height: SIZE_CONTENT
@@ -1728,13 +1811,13 @@ lvgl:
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: 0x8A8A8A
+                        text_color: $text_inactive
                         text: $humidity
                     - label:
                         id: weather_now_hum_label
                         text: "--%"
                         text_font: roboto19_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
         - obj:
             id: weather_forecast
             align: bottom_mid
@@ -1770,20 +1853,20 @@ lvgl:
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                     - label:
                         id: weather_wx_icon_0
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
                     - label:
                         id: weather_wx_temp_0
                         align: bottom_mid
                         y: -20
                         text: "--°"
                         text_font: roboto19_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
 
               # Divider 0/1
               - obj:
@@ -1814,20 +1897,20 @@ lvgl:
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                     - label:
                         id: weather_wx_icon_1
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
                     - label:
                         id: weather_wx_temp_1
                         align: bottom_mid
                         y: -20
                         text: "--°"
                         text_font: roboto19_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
 
               # Divider 1/2
               - obj:
@@ -1858,20 +1941,20 @@ lvgl:
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                     - label:
                         id: weather_wx_icon_2
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
                     - label:
                         id: weather_wx_temp_2
                         align: bottom_mid
                         y: -20
                         text: "--°"
                         text_font: roboto19_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
 
               # Divider 2/3
               - obj:
@@ -1902,20 +1985,20 @@ lvgl:
                         y: 20
                         text: "--:--"
                         text_font: roboto17_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                     - label:
                         id: weather_wx_icon_3
                         align: center
                         text: $wx_cloudy
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
                     - label:
                         id: weather_wx_temp_3
                         align: bottom_mid
                         y: -20
                         text: "--°"
                         text_font: roboto19_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
 
     # =========================================================================
     # ENERGY PAGE — solar flow / grid views (moved off the dashboard)
@@ -1961,7 +2044,7 @@ lvgl:
                     - label:
                         align: center
                         text_font: $icon_font
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
                         text: $chevron_left
                   on_click:
                     - script.execute:
@@ -1973,7 +2056,7 @@ lvgl:
                   y: 22
                   text: "Energie"
                   text_font: roboto28_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
         - obj:
             id: info_box
             width: 100%
@@ -2021,17 +2104,17 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFF8C00
+                              text_color: $accent_orange
                               text: $solar_power
                           - label:
                               text: "Solar"
                               text_font: roboto15_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                           - label:
                               id: flow_solar_value
                               text: "-- W"
                               text_font: roboto19_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
 
                     # Netz — left arm (col 0, row 1)
                     - obj:
@@ -2054,12 +2137,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $transmission_tower
                           - label:
                               text: "Netz"
                               text_font: roboto15_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                           - obj:
                               width: SIZE_CONTENT
                               height: SIZE_CONTENT
@@ -2076,12 +2159,12 @@ lvgl:
                                     id: flow_grid_value_white
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - label:
                                     id: flow_grid_value_orange
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFF8C00
+                                    text_color: $accent_orange
                                     hidden: true
 
                     # Akku — right arm (col 2, row 1)
@@ -2105,12 +2188,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $battery_charging
                           - label:
                               text: "Akku"
                               text_font: roboto15_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                           - obj:
                               width: SIZE_CONTENT
                               height: SIZE_CONTENT
@@ -2127,12 +2210,12 @@ lvgl:
                                     id: flow_batt_value_white
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - label:
                                     id: flow_batt_value_orange
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFF8C00
+                                    text_color: $accent_orange
                                     hidden: true
 
                     # Verbrauch — bottom arm (col 1, row 2)
@@ -2156,17 +2239,17 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $house
                           - label:
                               text: "Verbrauch"
                               text_font: roboto15_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                           - label:
                               id: flow_house_value
                               text: "-- W"
                               text_font: roboto19_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
 
                     # Center — flow direction arrows (col 1, row 1)
                     # No layout: children are placed via align inside the cell.
@@ -2189,7 +2272,7 @@ lvgl:
                               align: top_mid
                               text: $arrow_down_bold
                               text_font: icon_font_small
-                              text_color: 0xFF8C00
+                              text_color: $accent_orange
                               hidden: true
                           # center → Verbrauch (down, hidden when consumption = 0)
                           - label:
@@ -2197,7 +2280,7 @@ lvgl:
                               align: bottom_mid
                               text: $arrow_down_bold
                               text_font: icon_font_small
-                              text_color: 0xFF8C00
+                              text_color: $accent_orange
                               hidden: true
                           # Grid: left = export, right = import (hidden when 0)
                           - label:
@@ -2205,7 +2288,7 @@ lvgl:
                               align: left_mid
                               text: $arrow_left_bold
                               text_font: icon_font_small
-                              text_color: 0xFF8C00
+                              text_color: $accent_orange
                               hidden: true
                           # Battery: left = discharge, right = charge (hidden when 0)
                           - label:
@@ -2213,7 +2296,7 @@ lvgl:
                               align: right_mid
                               text: $arrow_left_bold
                               text_font: icon_font_small
-                              text_color: 0xFF8C00
+                              text_color: $accent_orange
                               hidden: true
 
               # =====================================================================
@@ -2265,12 +2348,12 @@ lvgl:
                                 - label:
                                     text: "Akku"
                                     text_font: roboto17_font
-                                    text_color: 0xB0B0B0
+                                    text_color: $text_tertiary
                                 - label:
                                     id: grid_batt_soc_label
                                     text: "--%"
                                     text_font: roboto17_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                           - bar:
                               id: grid_batt_bar
                               width: 100%
@@ -2279,7 +2362,7 @@ lvgl:
                               max_value: 100
                               value: 0
                               indicator:
-                                bg_color: 0xFF8C00
+                                bg_color: $accent_orange
 
                     # Compact list of metric rows. Each row: icon + name (grows
                     # to push the value right) + value (with arrow for bidi).
@@ -2298,18 +2381,18 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFF8C00
+                              text_color: $accent_orange
                               text: $solar_power
                           - label:
                               text: "Solar"
                               text_font: roboto17_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                               flex_grow: 1
                           - label:
                               id: grid_solar_value
                               text: "-- W"
                               text_font: roboto19_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
 
                     - obj:
                         width: 100%
@@ -2326,18 +2409,18 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $house
                           - label:
                               text: "Verbrauch"
                               text_font: roboto17_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                               flex_grow: 1
                           - label:
                               id: grid_house_value
                               text: "-- W"
                               text_font: roboto19_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
 
                     - obj:
                         width: 100%
@@ -2354,12 +2437,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $transmission_tower
                           - label:
                               text: "Netz"
                               text_font: roboto17_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                               flex_grow: 1
                           - obj:
                               width: SIZE_CONTENT
@@ -2378,17 +2461,17 @@ lvgl:
                                     id: grid_grid_arrow
                                     text: ""
                                     text_font: icon_font_small
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - label:
                                     id: grid_grid_value_white
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - label:
                                     id: grid_grid_value_orange
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFF8C00
+                                    text_color: $accent_orange
                                     hidden: true
 
                     - obj:
@@ -2406,12 +2489,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: icon_font_small
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $battery_charging
                           - label:
                               text: "Akku"
                               text_font: roboto17_font
-                              text_color: 0xB0B0B0
+                              text_color: $text_tertiary
                               flex_grow: 1
                           - obj:
                               width: SIZE_CONTENT
@@ -2430,17 +2513,17 @@ lvgl:
                                     id: grid_batt_io_arrow
                                     text: ""
                                     text_font: icon_font_small
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - label:
                                     id: grid_batt_io_value_white
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                 - label:
                                     id: grid_batt_io_value_orange
                                     text: "-- W"
                                     text_font: roboto19_font
-                                    text_color: 0xFF8C00
+                                    text_color: $accent_orange
                                     hidden: true
 
               # =====================================================================
@@ -2461,7 +2544,7 @@ lvgl:
                     - label:
                         align: center
                         text_font: icon_font_small
-                        text_color: 0xFFFFFF
+                        text_color: $text_primary
                         text: $swap_horizontal
                   on_click:
                     - lvgl.widget.update:
@@ -2497,7 +2580,7 @@ lvgl:
               - label:
                   align: center
                   text_font: $icon_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
                   text: $chevron_left
             on_click:
               - script.execute:
@@ -2510,7 +2593,7 @@ lvgl:
             y: 30
             text: "Mehr"
             text_font: roboto28_font
-            text_color: 0xFFFFFF
+            text_color: $text_primary
 
         - obj:
             id: more_tile_grid
@@ -2559,12 +2642,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $solar_power
                           - label:
                               text: "Energie"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -2598,12 +2681,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $thermometer
                           - label:
                               text: "Heizung"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -2637,12 +2720,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $lightbulb
                           - label:
                               text: "Szenen"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -2676,12 +2759,12 @@ lvgl:
                         widgets:
                           - label:
                               text_font: $icon_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               text: $vacuum
                           - label:
                               text: "Staubi-Saugi"
                               text_font: roboto17_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                   on_click:
                     - script.execute:
                         id: nav_to_page
@@ -2763,7 +2846,7 @@ lvgl:
                   arc_width: 0
                   arc_color: 0x000000
                   indicator:
-                    arc_color: 0xE06A2A
+                    arc_color: $accent_orange
                     arc_width: 27
                   knob:
                     bg_color: 0x000000
@@ -2812,7 +2895,7 @@ lvgl:
                   knob:
                     bg_color: 0xFFFFFF
                     border_width: 3
-                    border_color: 0xE06A2A
+                    border_color: $accent_orange
                   clickable: false
 
               # Dot for target temperature
@@ -2839,7 +2922,7 @@ lvgl:
                     height: 60
                     radius: 20
                     border_width: 6
-                    border_color: 0xE06A2A
+                    border_color: $accent_orange
                   clickable: true
                   adjustable: true
                   on_value:
@@ -2855,7 +2938,7 @@ lvgl:
                   id: heating_lab_mode_label
                   text: "Heating"
                   text_font: roboto19_font
-                  text_color: 0xE06A2A
+                  text_color: $accent_orange
                   align: center
                   y: -70
 
@@ -2864,7 +2947,7 @@ lvgl:
                   id: heating_lab_target_label
                   text: "--.-°C"
                   text_font: roboto48_font
-                  text_color: 0xE6E6E6
+                  text_color: $text_primary
                   align: center
 
               # Current temperature label (below)
@@ -2887,14 +2970,14 @@ lvgl:
                         id: heating_lab_current_icon
                         text: $thermometer
                         text_font: icon_font_small
-                        text_color: 0xE06A2A
+                        text_color: $accent_orange
                         align: center
                         pad_right: 9
                     - label:
                         id: heating_lab_current_value
                         text: "--.-°C"
                         text_font: roboto19_font
-                        text_color: 0xE06A2A
+                        text_color: $accent_orange
                         align: center
 
               # Down button (-0.5C)
@@ -2914,7 +2997,7 @@ lvgl:
                         text: "-"
                         text_font: roboto44_font
                         align: center
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                   on_click:
                     - homeassistant.service:
                         service: climate.set_temperature
@@ -2944,7 +3027,7 @@ lvgl:
                         text: "+"
                         text_font: roboto44_font
                         align: center
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                   on_click:
                     - homeassistant.service:
                         service: climate.set_temperature
@@ -2999,7 +3082,7 @@ lvgl:
                   id: printer_lab_title
                   text: "3D-Drucker"
                   text_font: roboto19_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
                   align: top_mid
                   y: 65
 
@@ -3008,7 +3091,7 @@ lvgl:
                   id: printer_lab_status_label
                   text: "Offline"
                   text_font: roboto19_font
-                  text_color: 0xE06A2A
+                  text_color: $accent_orange
                   align: center
                   y: -150
 
@@ -3033,11 +3116,11 @@ lvgl:
                         id: printer_lab_progress_label
                         text: "--"
                         text_font: roboto48_font
-                        text_color: 0xE6E6E6
+                        text_color: $text_primary
                     - label:
                         text: "%"
                         text_font: roboto19_font
-                        text_color: 0xE6E6E6
+                        text_color: $text_primary
 
               # Power draw (Watt) (hidden when offline)
               - obj:
@@ -3060,11 +3143,11 @@ lvgl:
                         id: printer_lab_power_label
                         text: "--"
                         text_font: roboto19_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
                     - label:
                         text: " W"
                         text_font: roboto19_font
-                        text_color: 0xB0B0B0
+                        text_color: $text_tertiary
 
               # On/Off toggle button
               # If the printer is currently printing (power state ON and
@@ -3127,19 +3210,19 @@ lvgl:
                         bg_color: $control_inner_color
                         bg_opa: cover
                         border_width: 2
-                        border_color: 0xE06A2A
+                        border_color: $accent_orange
                         radius: 16
                         pad_all: 20
                         widgets:
                           - label:
                               text: "Drucker laeuft"
                               text_font: roboto19_font
-                              text_color: 0xE06A2A
+                              text_color: $accent_orange
                               align: top_mid
                           - label:
                               text: "Wirklich ausschalten?"
                               text_font: roboto19_font
-                              text_color: 0xFFFFFF
+                              text_color: $text_primary
                               align: center
                               y: -20
                           - button:
@@ -3166,7 +3249,7 @@ lvgl:
                                 - label:
                                     text: "Ausschalten"
                                     text_font: roboto19_font
-                                    text_color: 0xFFFFFF
+                                    text_color: $text_primary
                                     align: center
                               on_click:
                                 - homeassistant.service:
@@ -3218,7 +3301,7 @@ lvgl:
               - label:
                   text: "Szenen"
                   text_font: roboto19_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
                   align: top_mid
                   y: 65
 
@@ -3340,6 +3423,6 @@ lvgl:
               - label:
                   text: "Staubsaugroboter"
                   text_font: roboto19_font
-                  text_color: 0xFFFFFF
+                  text_color: $text_primary
                   align: top_mid
                   y: 65

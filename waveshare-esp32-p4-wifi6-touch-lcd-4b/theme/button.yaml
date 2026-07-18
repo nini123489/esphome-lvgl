@@ -1,21 +1,48 @@
 substitutions:
   icon_font: icon_font
   text_font: roboto19_font
-  button_on_color: "0xFF8C00"
-  button_text_color: "0xFFFFFF"
-  # Surface palette, darkest to lightest:
-  #   page_bg     — the display background everything sits on
-  #   status_bg   — strip behind the dashboard status line
-  #   stack_side_bg — the stack widget's tab column
-  #   button_control_color — every card, tile and button
-  #   control_inner_color  — controls sitting *inside* a card (the -/+ circles),
-  #                          one step lighter so they stay visible on it
-  page_bg_color: "0x181818"
-  status_bg_color: "0x151515"
-  stack_side_bg_color: "0x1D1D1D"
-  button_control_color: "0x242424"
-  control_inner_color: "0x2E2E2E"
+  button_on_color: "0xE87A4A"
+  button_text_color: "0xE8E8E6"
+
+  # ---------------------------------------------------------------------------
+  # PALETTE — single source of truth for the dashboard's colors.
+  # ---------------------------------------------------------------------------
+  # Surfaces, darkest to lightest
+  page_bg_color: "0x181818"        # screen background, all pages
+  status_bg_color: "0x151515"      # passive info surfaces: status line + notifications
+  stack_side_bg_color: "0x1D1D1D"  # stack widget tab column
+  button_control_color: "0x242424" # stack card
+  quick_button_color: "0x262626"   # quick buttons along the bottom
+  control_inner_color: "0x333330"  # -/+ buttons, bar and arc tracks
   button_webhook_color: "0x212121"
+
+  # Active-state tints
+  tint_amber: "0x3A2E22"           # heating + scenes tab, when active
+  tint_green: "0x1E2E24"           # on-badge, on-switch
+  # Not from the given palette: the fan tab needs a blue tint and none was
+  # specified. Same lightness as tint_amber, hue shifted to blue.
+  tint_blue: "0x222C38"
+
+  # Borders and dividers
+  border_card: "0x3A3A3A"
+  border_button: "0x3D3D3A"
+  border_circle: "0x4A4A47"
+  divider_tabs: "0x333333"
+  divider_status: "0x2A2A2A"
+
+  # Type
+  text_primary: "0xE8E8E6"         # clock, temperatures, titles
+  text_secondary: "0xC8C8C4"       # notifications, button labels
+  text_tertiary: "0x9A9A95"        # date, status values, units, Ist/Ziel
+  text_timestamp: "0x66665F"
+  text_inactive: "0x8A8A86"        # inactive labels, muted status icons
+
+  # Accents
+  accent_amber: "0xE8B64A"         # sun, bell, light/scenes
+  accent_orange: "0xE87A4A"        # heating flame, bar fill
+  accent_green: "0x5CC98A"         # battery, on state
+  accent_blue: "0x4A9EE8"          # humidity, consumption, weather, fan
+  tab_icon_inactive: "0x777772"
   button_height_single: 210px
   button_width: 225px
   padding: 18px
