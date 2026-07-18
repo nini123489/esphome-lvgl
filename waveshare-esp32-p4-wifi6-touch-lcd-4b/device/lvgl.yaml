@@ -766,6 +766,8 @@ lvgl:
                                           text_font: roboto17_font
                                           text_color: 0xFFFFFF
                                 - button:
+                                    # Status badge only — switching happens on
+                                    # the big power button at the bottom.
                                     id: main_heat_state_chip
                                     width: 76
                                     height: 34
@@ -773,22 +775,13 @@ lvgl:
                                     radius: 17
                                     bg_color: 0x2A2A2A
                                     checkable: true
+                                    clickable: false
                                     widgets:
                                       - label:
                                           id: main_heat_state_label
                                           align: center
                                           text: "aus"
                                           text_font: roboto15_font
-                                    on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_hvac_mode
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: !lambda |-
-                                              if (id(heating_main_hvac_mode).has_state() && id(heating_main_hvac_mode).state != "off") {
-                                                return std::string("off");
-                                              }
-                                              return std::string("heat");
 
                           # Target temperature with round -/+ buttons
                           - obj:
@@ -916,80 +909,53 @@ lvgl:
                                     indicator:
                                       bg_color: 0xE06A2A
 
-                          # Mode row — Auto / Manuell / Aus
-                          - obj:
+                          # Big power toggle. Replaces the former
+                          # Auto/Manuell/Aus segment row: one target, easier to
+                          # hit, and the mode is still shown by the chip at the
+                          # top of the card.
+                          - button:
+                              id: main_heat_power_button
                               width: 100%
-                              height: 56
-                              bg_opa: TRANSP
-                              border_width: 0
+                              height: 72
                               pad_all: 0
-                              scrollbar_mode: "off"
-                              clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: row
-                                pad_column: 12
+                              radius: $radius
+                              bg_color: 0x2A2A2A
+                              checkable: true
                               widgets:
-                                - button:
-                                    id: main_heat_mode_auto
-                                    flex_grow: 1
-                                    height: 56
+                                - obj:
+                                    align: center
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
                                     pad_all: 0
-                                    radius: 8
-                                    bg_color: 0x2A2A2A
-                                    checkable: true
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      pad_column: 10
                                     widgets:
                                       - label:
-                                          align: center
-                                          text: "Auto"
-                                          text_font: roboto15_font
+                                          text_font: icon_font_small
                                           text_color: 0xFFFFFF
-                                    on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_hvac_mode
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: "auto"
-                                - button:
-                                    id: main_heat_mode_manual
-                                    flex_grow: 1
-                                    height: 56
-                                    pad_all: 0
-                                    radius: 8
-                                    bg_color: 0x2A2A2A
-                                    checkable: true
-                                    widgets:
+                                          text: $power
                                       - label:
-                                          align: center
-                                          text: "Manuell"
-                                          text_font: roboto15_font
-                                          text_color: 0xFFFFFF
-                                    on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_hvac_mode
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: "heat"
-                                - button:
-                                    id: main_heat_mode_off
-                                    flex_grow: 1
-                                    height: 56
-                                    pad_all: 0
-                                    radius: 8
-                                    bg_color: 0x2A2A2A
-                                    checkable: true
-                                    widgets:
-                                      - label:
-                                          align: center
+                                          id: main_heat_power_label
                                           text: "Aus"
-                                          text_font: roboto15_font
+                                          text_font: roboto19_font
                                           text_color: 0xFFFFFF
-                                    on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_hvac_mode
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: "off"
+                              on_click:
+                                - homeassistant.service:
+                                    service: climate.set_hvac_mode
+                                    data:
+                                      entity_id: climate.eve_thermo_20ebp1701
+                                      hvac_mode: !lambda |-
+                                        if (id(heating_main_hvac_mode).has_state() && id(heating_main_hvac_mode).state != "off") {
+                                          return std::string("off");
+                                        }
+                                        return std::string("heat");
 
                     # ===== TAB: Ventilator (fan.dmaker_de_454884949_p33_s_2_fan) =====
                     - obj:
@@ -1387,14 +1353,21 @@ lvgl:
                                       entity_id: scene.licht_aus
 
               # ---------------- vertical tab strip (right edge) ---------------
+              # Visually separated from the content: own (darker) background
+              # plus a divider line on its left edge.
               - obj:
                   id: main_stack_tabs
-                  width: 72
+                  width: 96
                   height: 100%
-                  bg_opa: TRANSP
-                  border_width: 0
+                  bg_color: 0x262626
+                  bg_opa: cover
+                  radius: $radius
+                  border_width: 2
+                  border_side: LEFT
+                  border_color: 0x3A3A3A
                   pad_all: 8
                   scrollbar_mode: "off"
+                  scrollable: false
                   clickable: false
                   layout:
                     type: flex
@@ -1405,10 +1378,10 @@ lvgl:
                   widgets:
                     - button:
                         id: main_tab_heat_button
-                        width: 56
-                        height: 56
+                        width: 76
+                        height: 76
                         pad_all: 0
-                        radius: 28
+                        radius: 16
                         bg_color: 0x3A3A3A
                         checkable: true
                         state:
@@ -1416,7 +1389,7 @@ lvgl:
                         widgets:
                           - label:
                               align: center
-                              text_font: icon_font_small
+                              text_font: $icon_font
                               text_color: 0xFFFFFF
                               text: $thermometer
                         on_click:
@@ -1443,10 +1416,10 @@ lvgl:
                                 checked: false
                     - button:
                         id: main_tab_fan_button
-                        width: 56
-                        height: 56
+                        width: 76
+                        height: 76
                         pad_all: 0
-                        radius: 28
+                        radius: 16
                         bg_color: 0x3A3A3A
                         checkable: true
                         state:
@@ -1454,7 +1427,7 @@ lvgl:
                         widgets:
                           - label:
                               align: center
-                              text_font: icon_font_small
+                              text_font: $icon_font
                               text_color: 0xFFFFFF
                               text: $fan
                         on_click:
@@ -1481,10 +1454,10 @@ lvgl:
                                 checked: false
                     - button:
                         id: main_tab_scenes_button
-                        width: 56
-                        height: 56
+                        width: 76
+                        height: 76
                         pad_all: 0
-                        radius: 28
+                        radius: 16
                         bg_color: 0x3A3A3A
                         checkable: true
                         state:
@@ -1492,7 +1465,7 @@ lvgl:
                         widgets:
                           - label:
                               align: center
-                              text_font: icon_font_small
+                              text_font: $icon_font
                               text_color: 0xFFFFFF
                               text: $lightbulb
                         on_click:
