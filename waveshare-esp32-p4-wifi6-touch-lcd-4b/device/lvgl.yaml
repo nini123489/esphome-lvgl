@@ -424,9 +424,11 @@ lvgl:
             radius: 22
             border_width: 0
             pad_all: 0
-            # pad_top nudges the row's contents down: MDI glyphs sit high in
-            # their line box, so box-centering alone reads as a few px too high.
-            pad_top: 2
+            # Contents are centred purely geometrically: every item is exactly
+            # as tall as the icon font's line box (30) and the row centres them
+            # in its 44px. status_row_nudge is the one knob for fine-tuning
+            # against the panel; see theme/button.yaml.
+            pad_top: $status_row_nudge
             pad_left: 12
             pad_right: 12
             scrollbar_mode: "off"
@@ -439,7 +441,7 @@ lvgl:
             widgets:
               - obj:
                   width: SIZE_CONTENT
-                  height: 100%
+                  height: 30
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -454,7 +456,7 @@ lvgl:
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: $accent_amber
+                        text_color: $text_inactive
                         text: $wx_sunny
                     - label:
                         id: main_status_out_value
@@ -473,7 +475,7 @@ lvgl:
                   clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: 100%
+                  height: 30
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -507,7 +509,7 @@ lvgl:
                   clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: 100%
+                  height: 30
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -522,7 +524,7 @@ lvgl:
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: $accent_blue
+                        text_color: $text_inactive
                         text: $humidity
                     - label:
                         id: main_status_hum_value
@@ -541,7 +543,7 @@ lvgl:
                   clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: 100%
+                  height: 30
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -556,7 +558,7 @@ lvgl:
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: $accent_amber
+                        text_color: $text_inactive
                         text: $solar_power
                     - label:
                         id: main_status_pv_value
@@ -575,7 +577,7 @@ lvgl:
                   clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: 100%
+                  height: 30
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -590,7 +592,7 @@ lvgl:
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: $accent_blue
+                        text_color: $text_inactive
                         text: $house_power
                     - label:
                         id: main_status_house_value
@@ -609,7 +611,7 @@ lvgl:
                   clickable: false
               - obj:
                   width: SIZE_CONTENT
-                  height: 100%
+                  height: 30
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
@@ -624,7 +626,7 @@ lvgl:
                   widgets:
                     - label:
                         text_font: icon_font_small
-                        text_color: $accent_green
+                        text_color: $text_inactive
                         text: $battery
                     - label:
                         id: main_status_batt_value
@@ -785,6 +787,11 @@ lvgl:
                   clickable: false
                   widgets:
                     # ===== TAB: Heizung (climate.eve_thermo_20ebp1701) =====
+                    # Layout: title / arc with the -/+ circles flanking it /
+                    # full-width power button. The arc carries the target
+                    # temperature; the arc's own scale is degrees x2 (20..64 =
+                    # 10..32 degC) because LVGL arcs are integer-valued -- the
+                    # same convention the heating detail page uses.
                     - obj:
                         id: main_stack_heat
                         width: 100%
@@ -799,12 +806,12 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_main: space_between
-                          pad_row: 14
+                          pad_row: 10
                         widgets:
 
-                          # Title + on/off state chip
+                          # Title
                           - obj:
-                              width: 100%
+                              width: SIZE_CONTENT
                               height: 34
                               bg_opa: TRANSP
                               border_width: 0
@@ -814,62 +821,28 @@ lvgl:
                               layout:
                                 type: flex
                                 flex_flow: row
-                                flex_align_main: space_between
                                 flex_align_cross: center
+                                pad_column: 8
                               widgets:
-                                - obj:
-                                    width: SIZE_CONTENT
-                                    height: SIZE_CONTENT
-                                    bg_opa: TRANSP
-                                    border_width: 0
-                                    pad_all: 0
-                                    scrollbar_mode: "off"
-                                    clickable: false
-                                    layout:
-                                      type: flex
-                                      flex_flow: row
-                                      flex_align_cross: center
-                                      pad_column: 8
-                                    widgets:
-                                      - label:
-                                          text_font: icon_font_small
-                                          text_color: $accent_orange
-                                          text: $thermometer
-                                      - label:
-                                          id: main_heat_title_label
-                                          text: "Heizung Wohnzimmer"
-                                          text_font: roboto17_font
-                                          text_color: $text_primary
-                                - button:
-                                    # Status badge only — switching happens on
-                                    # the big power button at the bottom.
-                                    id: main_heat_state_chip
-                                    width: 76
-                                    height: 34
-                                    pad_all: 0
-                                    radius: 17
-                                    bg_color: $control_inner_color
-                                    text_color: $text_inactive
-                                    checked:
-                                      bg_color: $tint_green
-                                      text_color: $accent_green
-                                    checkable: true
-                                    clickable: false
-                                    widgets:
-                                      - label:
-                                          id: main_heat_state_label
-                                          align: center
-                                          text: "aus"
-                                          text_font: roboto15_font
+                                - label:
+                                    text_font: icon_font_small
+                                    text_color: $accent_orange
+                                    text: $fire
+                                - label:
+                                    id: main_heat_title_label
+                                    text: "Heizung"
+                                    text_font: roboto17_font
+                                    text_color: $text_primary
 
-                          # Target temperature with round -/+ buttons
+                          # -  [ arc ]  +
                           - obj:
                               width: 100%
-                              height: 84
+                              flex_grow: 1
                               bg_opa: TRANSP
                               border_width: 0
                               pad_all: 0
                               scrollbar_mode: "off"
+                              scrollable: false
                               clickable: false
                               layout:
                                 type: flex
@@ -906,11 +879,69 @@ lvgl:
                                                 return id(heating_main_target_temp).state - 0.5f;
                                               }
                                               return 20.0f;
-                                - label:
-                                    id: main_heat_target_label
-                                    text: "--.-°"
-                                    text_font: roboto36_font
-                                    text_color: $text_primary
+
+                                # Arc plus its centred labels. An arc takes no
+                                # child widgets, so both live in this wrapper
+                                # and are aligned over the top of it.
+                                - obj:
+                                    id: main_heat_arc_box
+                                    width: 170
+                                    height: 170
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    scrollable: false
+                                    clickable: false
+                                    widgets:
+                                      - arc:
+                                          id: main_heat_arc
+                                          align: center
+                                          width: 100%
+                                          height: 100%
+                                          min_value: 20
+                                          max_value: 64
+                                          value: 40
+                                          start_angle: 135
+                                          end_angle: 45
+                                          arc_width: 14
+                                          arc_color: $control_inner_color
+                                          adjustable: true
+                                          clickable: true
+                                          indicator:
+                                            arc_color: $accent_orange
+                                            arc_width: 14
+                                          knob:
+                                            bg_color: $accent_orange
+                                          # Fires on user interaction only:
+                                          # lv_arc_set_value (what the sensor
+                                          # update calls) sends no event, so
+                                          # this cannot feed back on itself.
+                                          on_value:
+                                            - homeassistant.service:
+                                                service: climate.set_temperature
+                                                data:
+                                                  entity_id: climate.eve_thermo_20ebp1701
+                                                  hvac_mode: heat
+                                                data_template:
+                                                  temperature: "{{ temp }}"
+                                                variables:
+                                                  temp: !lambda 'return (float) x / 2.0f;'
+                                      - label:
+                                          id: main_heat_target_label
+                                          align: center
+                                          y: -12
+                                          text: "--.-°"
+                                          text_font: roboto36_font
+                                          text_color: $text_primary
+                                      - label:
+                                          id: main_heat_current_label
+                                          align: center
+                                          y: 26
+                                          text: "Ist --.-°"
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+
                                 - button:
                                     id: main_heat_up_button
                                     width: 76
@@ -941,72 +972,21 @@ lvgl:
                                               }
                                               return 20.0f;
 
-                          # Current -> target progress. The bar works in tenths
-                          # of a degree (150..250 = 15.0..25.0 °C) because LVGL
-                          # bars are integer-valued.
-                          - obj:
-                              width: 100%
-                              height: 44
-                              bg_opa: TRANSP
-                              border_width: 0
-                              pad_all: 0
-                              scrollbar_mode: "off"
-                              clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: column
-                                pad_row: 6
-                              widgets:
-                                - obj:
-                                    width: 100%
-                                    height: 26
-                                    bg_opa: TRANSP
-                                    border_width: 0
-                                    pad_all: 0
-                                    scrollbar_mode: "off"
-                                    clickable: false
-                                    layout:
-                                      type: flex
-                                      flex_flow: row
-                                      flex_align_main: space_between
-                                      flex_align_cross: center
-                                    widgets:
-                                      - label:
-                                          id: main_heat_current_label
-                                          text: "Ist --.-°"
-                                          text_font: roboto15_font
-                                          text_color: $text_tertiary
-                                      - label:
-                                          id: main_heat_goal_label
-                                          text: "Ziel --.-°"
-                                          text_font: roboto15_font
-                                          text_color: $text_tertiary
-                                - bar:
-                                    id: main_heat_bar
-                                    width: 100%
-                                    height: 12
-                                    min_value: 150
-                                    max_value: 250
-                                    value: 150
-                                    bg_color: $control_inner_color
-                                    indicator:
-                                      bg_color: $accent_orange
-
-                          # Big power toggle. Replaces the former
-                          # Auto/Manuell/Aus segment row: one target, easier to
-                          # hit, and the mode is still shown by the chip at the
-                          # top of the card.
+                          # Power toggle, full width
                           - button:
                               id: main_heat_power_button
                               width: 100%
-                              height: 72
+                              height: 64
                               pad_all: 0
                               radius: $radius
                               bg_color: $control_inner_color
                               text_color: $text_secondary
+                              border_width: 1
+                              border_color: $border_circle
                               checked:
                                 bg_color: $tint_green
                                 text_color: $accent_green
+                                border_color: $accent_green
                               checkable: true
                               widgets:
                                 - obj:
@@ -1026,11 +1006,11 @@ lvgl:
                                     widgets:
                                       - label:
                                           text_font: icon_font_small
-                                          text_color: $text_primary
                                           text: $power
                                       - label:
                                           id: main_heat_power_label
-                                          text: "Aus"
+                                          text: "Ausgeschaltet"
+                                          text_font: roboto19_font
                               on_click:
                                 - homeassistant.service:
                                     service: climate.set_hvac_mode
@@ -1041,6 +1021,7 @@ lvgl:
                                           return std::string("off");
                                         }
                                         return std::string("heat");
+
 
                     # ===== TAB: Ventilator (fan.dmaker_de_454884949_p33_s_2_fan) =====
                     - obj:
@@ -1449,7 +1430,7 @@ lvgl:
               # plus a divider line on its left edge.
               - obj:
                   id: main_stack_tabs
-                  width: 96
+                  width: 120
                   height: 100%
                   bg_color: $stack_side_bg_color
                   bg_opa: cover
@@ -1470,10 +1451,10 @@ lvgl:
                   widgets:
                     - button:
                         id: main_tab_heat_button
-                        width: 76
-                        height: 76
+                        width: 96
+                        height: 64
                         pad_all: 0
-                        radius: 30
+                        radius: 20
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -1514,10 +1495,10 @@ lvgl:
                                 checked: false
                     - button:
                         id: main_tab_fan_button
-                        width: 76
-                        height: 76
+                        width: 96
+                        height: 64
                         pad_all: 0
-                        radius: 30
+                        radius: 20
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -1558,10 +1539,10 @@ lvgl:
                                 checked: false
                     - button:
                         id: main_tab_scenes_button
-                        width: 76
-                        height: 76
+                        width: 96
+                        height: 64
                         pad_all: 0
-                        radius: 30
+                        radius: 20
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP

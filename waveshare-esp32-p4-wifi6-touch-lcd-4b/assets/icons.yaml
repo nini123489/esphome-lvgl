@@ -73,6 +73,7 @@ font:
       "\U000F1903",  # mdi-home-lightning-bolt
       "\U000F01D8",  # mdi-dots-horizontal
       "\U000F0599",  # mdi-weather-sunny (status line, outdoor temp)
+      "\U000F0238",  # mdi-fire (heating card title)
       ]
 
 # Map icons to names
@@ -129,3 +130,4 @@ substitutions:
   humidity:           "\U000F058E"
   house_power:        "\U000F1903"
   dots_horizontal:    "\U000F01D8"
+  fire:               "\U000F0238"
