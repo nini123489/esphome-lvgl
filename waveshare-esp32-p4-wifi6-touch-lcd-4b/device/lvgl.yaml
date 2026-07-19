@@ -455,6 +455,46 @@ script:
           variables:
             pct: !lambda 'return (int)roundf(id(fan_main_pending_pct));'
 
+  # Central stack-tab switcher: shows the chosen tab, updates the tab-strip
+  # checked states and mirrors the choice into the HA-facing "Stack-Widget"
+  # select (publish_state fires the select's on_value, which calls this
+  # script again -- mode: single swallows that recursion, same trick as
+  # nav_to_page). Called by the four tab buttons and by the select.
+  - id: stack_show_tab
+    mode: single
+    parameters:
+      tab: string
+    then:
+      - lambda: 'id(stack_tab_select).publish_state(tab);'
+      - lvgl.widget.update:
+          id: main_stack_heat
+          hidden: !lambda 'return tab != "Heizung";'
+      - lvgl.widget.update:
+          id: main_stack_fan
+          hidden: !lambda 'return tab != "Ventilator";'
+      - lvgl.widget.update:
+          id: main_stack_light
+          hidden: !lambda 'return tab != "Lampe";'
+      - lvgl.widget.update:
+          id: main_stack_scenes
+          hidden: !lambda 'return tab != "Szenen";'
+      - lvgl.widget.update:
+          id: main_tab_heat_button
+          state:
+            checked: !lambda 'return tab == "Heizung";'
+      - lvgl.widget.update:
+          id: main_tab_fan_button
+          state:
+            checked: !lambda 'return tab == "Ventilator";'
+      - lvgl.widget.update:
+          id: main_tab_light_button
+          state:
+            checked: !lambda 'return tab == "Lampe";'
+      - lvgl.widget.update:
+          id: main_tab_scenes_button
+          state:
+            checked: !lambda 'return tab == "Szenen";'
+
   # Resize the stack-card arcs to the space the notification row leaves over.
   # The row is SIZE_CONTENT (one 46px line per notification), so there are
   # four states: row collapsed 340px, empty placeholder 300px, one
@@ -2216,34 +2256,9 @@ lvgl:
                               text_font: icon_font_small
                               text: $thermometer
                         on_click:
-                          - lvgl.widget.update:
-                              id: main_stack_heat
-                              hidden: false
-                          - lvgl.widget.update:
-                              id: main_stack_fan
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_scenes
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_light
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_tab_heat_button
-                              state:
-                                checked: true
-                          - lvgl.widget.update:
-                              id: main_tab_fan_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_scenes_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_light_button
-                              state:
-                                checked: false
+                          - script.execute:
+                              id: stack_show_tab
+                              tab: "Heizung"
                     - button:
                         id: main_tab_fan_button
                         width: 96
@@ -2267,34 +2282,9 @@ lvgl:
                               text_font: icon_font_small
                               text: $fan
                         on_click:
-                          - lvgl.widget.update:
-                              id: main_stack_heat
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_fan
-                              hidden: false
-                          - lvgl.widget.update:
-                              id: main_stack_scenes
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_light
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_tab_heat_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_fan_button
-                              state:
-                                checked: true
-                          - lvgl.widget.update:
-                              id: main_tab_scenes_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_light_button
-                              state:
-                                checked: false
+                          - script.execute:
+                              id: stack_show_tab
+                              tab: "Ventilator"
                     - button:
                         id: main_tab_light_button
                         width: 96
@@ -2318,34 +2308,9 @@ lvgl:
                               text_font: icon_font_small
                               text: $desk_lamp
                         on_click:
-                          - lvgl.widget.update:
-                              id: main_stack_heat
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_fan
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_scenes
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_light
-                              hidden: false
-                          - lvgl.widget.update:
-                              id: main_tab_heat_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_fan_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_scenes_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_light_button
-                              state:
-                                checked: true
+                          - script.execute:
+                              id: stack_show_tab
+                              tab: "Lampe"
                     - button:
                         id: main_tab_scenes_button
                         width: 96
@@ -2369,34 +2334,9 @@ lvgl:
                               text_font: icon_font_small
                               text: $lightbulb
                         on_click:
-                          - lvgl.widget.update:
-                              id: main_stack_heat
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_fan
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_stack_scenes
-                              hidden: false
-                          - lvgl.widget.update:
-                              id: main_stack_light
-                              hidden: true
-                          - lvgl.widget.update:
-                              id: main_tab_heat_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_fan_button
-                              state:
-                                checked: false
-                          - lvgl.widget.update:
-                              id: main_tab_scenes_button
-                              state:
-                                checked: true
-                          - lvgl.widget.update:
-                              id: main_tab_light_button
-                              state:
-                                checked: false
+                          - script.execute:
+                              id: stack_show_tab
+                              tab: "Szenen"
 
         # ---------------------------------------------------------------------
         # QUICK BUTTONS — single tiles leading to the detail sub-pages

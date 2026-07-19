@@ -4,6 +4,7 @@
 # Entities this device publishes to HA so users can remote-control the display
 # and the auto-revert behavior:
 #   Select  "Aktive Seite"        -> jumps the display to the chosen page now
+#   Select  "Stack-Widget"        -> which tab the dashboard stack card shows
 #   Select  "Default-Seite"       -> page used on boot, idle revert, display-off revert
 #   Switch  "Revert bei Idle"     -> enables the idle timer (interval lives in lvgl.yaml)
 #   Switch  "Revert bei Display aus" -> enables revert when backlight goes off
@@ -34,6 +35,25 @@ select:
       - script.execute:
           id: nav_to_page
           page: !lambda 'return x;'
+
+  # Which tab the dashboard stack card shows. Kept in sync in both directions:
+  # picking here switches the tab, tapping a tab on screen publishes back
+  # (stack_show_tab in lvgl.yaml, recursion guarded by its mode: single).
+  - platform: template
+    name: "Stack-Widget"
+    id: stack_tab_select
+    options:
+      - "Heizung"
+      - "Ventilator"
+      - "Lampe"
+      - "Szenen"
+    initial_option: "Heizung"
+    optimistic: true
+    restore_value: false
+    on_value:
+      - script.execute:
+          id: stack_show_tab
+          tab: !lambda 'return x;'
 
   - platform: template
     name: "Default-Seite"
