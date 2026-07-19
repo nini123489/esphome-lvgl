@@ -112,6 +112,33 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # Light tab (light.h6022): one shared editing guard for all four sliders,
+  # plus a pending value per control. Sliders send on_release (one call), so
+  # no debounce script is needed here.
+  - id: light_main_editing
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: light_main_hold_deadline
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: light_pending_bri
+    type: float
+    restore_value: false
+    initial_value: 'NAN'
+  - id: light_pending_hue
+    type: float
+    restore_value: false
+    initial_value: '0'
+  - id: light_pending_sat
+    type: float
+    restore_value: false
+    initial_value: '100'
+  - id: light_pending_ct
+    type: float
+    restore_value: false
+    initial_value: '4000'
 
 script:
   # Central page-navigation entry point. Takes a HA-facing label and routes to
@@ -498,6 +525,51 @@ lvgl:
   byte_order: little_endian
   displays: my_display
   touchscreens: my_touchscreen
+  # Multi-stop gradients for the light tab's picker sliders. Positions are
+  # percentages, direction VER = first stop at the top. The sliders show the
+  # gradient on their main part with a transparent indicator, so the full
+  # ramp stays visible and the knob marks the position.
+  gradients:
+    # Full hue circle for the Farbton slider (value 0..360, max at the top):
+    # red at both ends, running backwards so hue increases upwards.
+    - id: hue_grad
+      direction: VER
+      stops:
+        - color: 0xFF0000
+          position: 0%
+        - color: 0xFF00FF
+          position: 17%
+        - color: 0x0000FF
+          position: 33%
+        - color: 0x00FFFF
+          position: 50%
+        - color: 0x00FF00
+          position: 67%
+        - color: 0xFFFF00
+          position: 83%
+        - color: 0xFF0000
+          position: 100%
+    # Saturation: vivid at the top (100), white at the bottom (0). Static
+    # red-ish approximation of the currently selected hue.
+    - id: sat_grad
+      direction: VER
+      stops:
+        - color: 0xFF4030
+          position: 0%
+        - color: 0xFFFFFF
+          position: 100%
+    # Color temperature: warm at the top like the HA card. The slider value
+    # is inverted when sending (kelvin = 8535 - x) so warm stays on top even
+    # though LVGL puts the max value at the top.
+    - id: ct_grad
+      direction: VER
+      stops:
+        - color: 0xFF6A00
+          position: 0%
+        - color: 0xFFC98A
+          position: 50%
+        - color: 0xFAF6EF
+          position: 100%
   top_layer:
     # The former global status bar (clock, temperatures, battery, notification
     # bell) lived here and forced every page to reserve 51px of top padding.
@@ -1619,6 +1691,454 @@ lvgl:
                                     data:
                                       entity_id: scene.licht_aus
 
+                    # ===== TAB: Lampe (light.h6022, Govee Desk Light) =====
+                    # HA-light-card style: one big vertical slider area on the
+                    # right, view/power buttons stacked vertically on the
+                    # left. The three views (brightness / color / color temp)
+                    # are stacked 100%-size children of the content area; the
+                    # side buttons switch them radio-style. All sliders echo
+                    # locally while dragging (shared editing guard) and send
+                    # exactly one light.turn_on on release.
+                    - obj:
+                        id: main_stack_light
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 14
+                        scrollbar_mode: "off"
+                        scrollable: false
+                        hidden: true
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          pad_row: 10
+                        widgets:
+
+                          # Title
+                          - obj:
+                              width: SIZE_CONTENT
+                              height: 34
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_column: 8
+                              widgets:
+                                - label:
+                                    text_font: icon_font_small
+                                    text_color: $accent_amber
+                                    text: $desk_lamp
+                                - label:
+                                    text: "Lampe"
+                                    text_font: roboto17_font
+                                    text_color: $text_primary
+
+                          # Body: side button column + view content area
+                          - obj:
+                              width: 100%
+                              flex_grow: 1
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              scrollable: false
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_column: 12
+                              widgets:
+
+                                # Side buttons: power, then the three views
+                                - obj:
+                                    width: 56
+                                    height: 100%
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    scrollable: false
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: column
+                                      flex_align_main: center
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_row: 10
+                                    widgets:
+                                      - button:
+                                          id: light_power_button
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          text_color: $text_secondary
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          checked:
+                                            bg_color: $tint_green
+                                            text_color: $accent_green
+                                            border_color: $accent_green
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text_font: icon_font_small
+                                                text: $power
+                                          on_click:
+                                            - homeassistant.service:
+                                                service: light.toggle
+                                                data:
+                                                  entity_id: light.h6022
+                                      - button:
+                                          id: light_view_bri_button
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          text_color: $text_secondary
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                            border_color: $accent_amber
+                                          checkable: true
+                                          state:
+                                            checked: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text_font: icon_font_small
+                                                text: $brightness_mid
+                                          on_click:
+                                            - lvgl.widget.update:
+                                                id: light_view_brightness
+                                                hidden: false
+                                            - lvgl.widget.update:
+                                                id: light_view_color
+                                                hidden: true
+                                            - lvgl.widget.update:
+                                                id: light_view_ct
+                                                hidden: true
+                                            - lvgl.widget.update:
+                                                id: light_view_bri_button
+                                                state:
+                                                  checked: true
+                                            - lvgl.widget.update:
+                                                id: light_view_color_button
+                                                state:
+                                                  checked: false
+                                            - lvgl.widget.update:
+                                                id: light_view_ct_button
+                                                state:
+                                                  checked: false
+                                      - button:
+                                          id: light_view_color_button
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          text_color: $text_secondary
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                            border_color: $accent_amber
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text_font: icon_font_small
+                                                text: $palette
+                                          on_click:
+                                            - lvgl.widget.update:
+                                                id: light_view_brightness
+                                                hidden: true
+                                            - lvgl.widget.update:
+                                                id: light_view_color
+                                                hidden: false
+                                            - lvgl.widget.update:
+                                                id: light_view_ct
+                                                hidden: true
+                                            - lvgl.widget.update:
+                                                id: light_view_bri_button
+                                                state:
+                                                  checked: false
+                                            - lvgl.widget.update:
+                                                id: light_view_color_button
+                                                state:
+                                                  checked: true
+                                            - lvgl.widget.update:
+                                                id: light_view_ct_button
+                                                state:
+                                                  checked: false
+                                      - button:
+                                          id: light_view_ct_button
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          text_color: $text_secondary
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                            border_color: $accent_amber
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text_font: icon_font_small
+                                                text: $wb_sunny
+                                          on_click:
+                                            - lvgl.widget.update:
+                                                id: light_view_brightness
+                                                hidden: true
+                                            - lvgl.widget.update:
+                                                id: light_view_color
+                                                hidden: true
+                                            - lvgl.widget.update:
+                                                id: light_view_ct
+                                                hidden: false
+                                            - lvgl.widget.update:
+                                                id: light_view_bri_button
+                                                state:
+                                                  checked: false
+                                            - lvgl.widget.update:
+                                                id: light_view_color_button
+                                                state:
+                                                  checked: false
+                                            - lvgl.widget.update:
+                                                id: light_view_ct_button
+                                                state:
+                                                  checked: true
+
+                                # Content area: three stacked views
+                                - obj:
+                                    flex_grow: 1
+                                    height: 100%
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    scrollable: false
+                                    clickable: false
+                                    widgets:
+
+                                      # -------- view: brightness (default) --
+                                      - obj:
+                                          id: light_view_brightness
+                                          width: 100%
+                                          height: 100%
+                                          bg_opa: TRANSP
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          scrollable: false
+                                          clickable: false
+                                          layout:
+                                            type: flex
+                                            flex_flow: column
+                                            flex_align_cross: center
+                                            flex_align_track: center
+                                            pad_row: 10
+                                          widgets:
+                                            - label:
+                                                id: light_brightness_label
+                                                text: "--%"
+                                                text_font: roboto28_font
+                                                text_color: $text_primary
+                                            - slider:
+                                                id: light_brightness_slider
+                                                width: 132
+                                                flex_grow: 1
+                                                min_value: 1
+                                                max_value: 100
+                                                value: 50
+                                                radius: 24
+                                                bg_color: $slider_background_color
+                                                bg_opa: cover
+                                                indicator:
+                                                  bg_color: $accent_amber
+                                                  radius: 24
+                                                knob:
+                                                  bg_color: $slider_knob_color
+                                                on_value:
+                                                  - lambda: |-
+                                                      id(light_pending_bri) = (float) x;
+                                                      id(light_main_editing) = true;
+                                                      id(light_main_hold_deadline) = millis() + 15000;
+                                                  - lvgl.label.update:
+                                                      id: light_brightness_label
+                                                      text:
+                                                        format: "%.0f%%"
+                                                        args: [ 'id(light_pending_bri)' ]
+                                                on_release:
+                                                  - homeassistant.service:
+                                                      service: light.turn_on
+                                                      data:
+                                                        entity_id: light.h6022
+                                                      data_template:
+                                                        brightness_pct: "{{ b }}"
+                                                      variables:
+                                                        b: !lambda 'return (int)roundf(id(light_pending_bri));'
+
+                                      # -------- view: color (hue + sat) -----
+                                      - obj:
+                                          id: light_view_color
+                                          width: 100%
+                                          height: 100%
+                                          bg_opa: TRANSP
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          scrollable: false
+                                          hidden: true
+                                          clickable: false
+                                          layout:
+                                            type: flex
+                                            flex_flow: row
+                                            flex_align_main: space_evenly
+                                            flex_align_cross: center
+                                            flex_align_track: center
+                                          widgets:
+                                            - slider:
+                                                id: light_hue_slider
+                                                width: 88
+                                                height: 100%
+                                                min_value: 0
+                                                max_value: 360
+                                                value: 0
+                                                radius: 24
+                                                bg_grad: hue_grad
+                                                bg_opa: cover
+                                                indicator:
+                                                  bg_opa: TRANSP
+                                                knob:
+                                                  bg_color: $slider_knob_color
+                                                  border_width: 3
+                                                  border_color: 0x1A1A1A
+                                                on_value:
+                                                  - lambda: |-
+                                                      id(light_pending_hue) = (float) x;
+                                                      id(light_main_editing) = true;
+                                                      id(light_main_hold_deadline) = millis() + 15000;
+                                                on_release:
+                                                  - homeassistant.service:
+                                                      service: light.turn_on
+                                                      data:
+                                                        entity_id: light.h6022
+                                                      data_template:
+                                                        hs_color: "{{ [h, s] }}"
+                                                      variables:
+                                                        h: !lambda 'return (int)roundf(id(light_pending_hue));'
+                                                        s: !lambda 'return (int)roundf(id(light_pending_sat));'
+                                            - slider:
+                                                id: light_sat_slider
+                                                width: 88
+                                                height: 100%
+                                                min_value: 0
+                                                max_value: 100
+                                                value: 100
+                                                radius: 24
+                                                bg_grad: sat_grad
+                                                bg_opa: cover
+                                                indicator:
+                                                  bg_opa: TRANSP
+                                                knob:
+                                                  bg_color: $slider_knob_color
+                                                  border_width: 3
+                                                  border_color: 0x1A1A1A
+                                                on_value:
+                                                  - lambda: |-
+                                                      id(light_pending_sat) = (float) x;
+                                                      id(light_main_editing) = true;
+                                                      id(light_main_hold_deadline) = millis() + 15000;
+                                                on_release:
+                                                  - homeassistant.service:
+                                                      service: light.turn_on
+                                                      data:
+                                                        entity_id: light.h6022
+                                                      data_template:
+                                                        hs_color: "{{ [h, s] }}"
+                                                      variables:
+                                                        h: !lambda 'return (int)roundf(id(light_pending_hue));'
+                                                        s: !lambda 'return (int)roundf(id(light_pending_sat));'
+
+                                      # -------- view: color temperature -----
+                                      # Slider value runs 2000..6535 but is
+                                      # inverted when sending (8535 - x) so
+                                      # warm sits at the top like the HA card.
+                                      - obj:
+                                          id: light_view_ct
+                                          width: 100%
+                                          height: 100%
+                                          bg_opa: TRANSP
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          scrollable: false
+                                          hidden: true
+                                          clickable: false
+                                          layout:
+                                            type: flex
+                                            flex_flow: row
+                                            flex_align_main: center
+                                            flex_align_cross: center
+                                            flex_align_track: center
+                                          widgets:
+                                            - slider:
+                                                id: light_ct_slider
+                                                width: 132
+                                                height: 100%
+                                                min_value: 2000
+                                                max_value: 6535
+                                                value: 4535
+                                                radius: 24
+                                                bg_grad: ct_grad
+                                                bg_opa: cover
+                                                indicator:
+                                                  bg_opa: TRANSP
+                                                knob:
+                                                  bg_color: $slider_knob_color
+                                                  border_width: 3
+                                                  border_color: 0x1A1A1A
+                                                on_value:
+                                                  - lambda: |-
+                                                      float k = 8535.0f - (float) x;
+                                                      if (k < 2000.0f) k = 2000.0f;
+                                                      if (k > 6535.0f) k = 6535.0f;
+                                                      id(light_pending_ct) = k;
+                                                      id(light_main_editing) = true;
+                                                      id(light_main_hold_deadline) = millis() + 15000;
+                                                on_release:
+                                                  - homeassistant.service:
+                                                      service: light.turn_on
+                                                      data:
+                                                        entity_id: light.h6022
+                                                      data_template:
+                                                        color_temp_kelvin: "{{ k }}"
+                                                      variables:
+                                                        k: !lambda 'return (int)roundf(id(light_pending_ct));'
+
               # ---------------- vertical tab strip (right edge) ---------------
               # Visually separated from the content: own (darker) background
               # plus a divider line on its left edge.
@@ -1677,6 +2197,9 @@ lvgl:
                               id: main_stack_scenes
                               hidden: true
                           - lvgl.widget.update:
+                              id: main_stack_light
+                              hidden: true
+                          - lvgl.widget.update:
                               id: main_tab_heat_button
                               state:
                                 checked: true
@@ -1686,6 +2209,10 @@ lvgl:
                                 checked: false
                           - lvgl.widget.update:
                               id: main_tab_scenes_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_light_button
                               state:
                                 checked: false
                     - button:
@@ -1721,6 +2248,9 @@ lvgl:
                               id: main_stack_scenes
                               hidden: true
                           - lvgl.widget.update:
+                              id: main_stack_light
+                              hidden: true
+                          - lvgl.widget.update:
                               id: main_tab_heat_button
                               state:
                                 checked: false
@@ -1730,6 +2260,10 @@ lvgl:
                                 checked: true
                           - lvgl.widget.update:
                               id: main_tab_scenes_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_light_button
                               state:
                                 checked: false
                     - button:
@@ -1765,6 +2299,9 @@ lvgl:
                               id: main_stack_scenes
                               hidden: false
                           - lvgl.widget.update:
+                              id: main_stack_light
+                              hidden: true
+                          - lvgl.widget.update:
                               id: main_tab_heat_button
                               state:
                                 checked: false
@@ -1774,6 +2311,61 @@ lvgl:
                                 checked: false
                           - lvgl.widget.update:
                               id: main_tab_scenes_button
+                              state:
+                                checked: true
+                          - lvgl.widget.update:
+                              id: main_tab_light_button
+                              state:
+                                checked: false
+                    - button:
+                        id: main_tab_light_button
+                        width: 96
+                        height: 64
+                        pad_all: 0
+                        radius: 20
+                        # Inactive tabs carry no background of their own, only
+                        # a dimmed icon; the active one gets a muted tint.
+                        bg_opa: TRANSP
+                        text_color: $tab_icon_inactive
+                        checked:
+                          bg_color: $tint_amber
+                          bg_opa: cover
+                          text_color: $accent_amber
+                        checkable: true
+                        state:
+                          checked: false
+                        widgets:
+                          - label:
+                              align: center
+                              text_font: icon_font_small
+                              text: $desk_lamp
+                        on_click:
+                          - lvgl.widget.update:
+                              id: main_stack_heat
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_fan
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_scenes
+                              hidden: true
+                          - lvgl.widget.update:
+                              id: main_stack_light
+                              hidden: false
+                          - lvgl.widget.update:
+                              id: main_tab_heat_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_fan_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_scenes_button
+                              state:
+                                checked: false
+                          - lvgl.widget.update:
+                              id: main_tab_light_button
                               state:
                                 checked: true
 

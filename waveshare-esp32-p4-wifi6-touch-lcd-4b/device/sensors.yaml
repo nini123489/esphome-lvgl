@@ -304,6 +304,71 @@ sensor:
             snprintf(b, sizeof(b), "%.0f min", x);
             return std::string(b);
 
+  # ===========================================================================
+  # LIGHT — Govee desk light (Lampe tab of the dashboard stack)
+  # ===========================================================================
+  # Brightness attribute is 0..255; the slider and label work in percent.
+  # Same local-echo guard as the heating/fan arcs: while the display is
+  # editing any light slider, HA echoes are suppressed for 15s.
+  - platform: homeassistant
+    entity_id: light.h6022
+    attribute: brightness
+    id: light_main_brightness
+    on_value:
+      - lambda: |-
+          if (id(light_main_editing) &&
+              (int32_t)(millis() - id(light_main_hold_deadline)) >= 0) {
+            id(light_main_editing) = false;
+          }
+          if (!id(light_main_editing)) id(light_pending_bri) = x / 2.55f;
+      - if:
+          condition:
+            lambda: 'return !id(light_main_editing);'
+          then:
+            - lvgl.label.update:
+                id: light_brightness_label
+                text:
+                  format: "%.0f%%"
+                  args: [ 'x / 2.55f' ]
+            - lvgl.slider.update:
+                id: light_brightness_slider
+                value: !lambda |-
+                  int v = (int)roundf(x / 2.55f);
+                  if (v < 1) v = 1;
+                  if (v > 100) v = 100;
+                  return v;
+
+  # Color temperature in Kelvin. The slider runs inverted (warm at the top),
+  # so the widget value is 8535 - kelvin; HA's reported minimum of 15 K is an
+  # integration bug, everything is clamped to 2000..6535.
+  - platform: homeassistant
+    entity_id: light.h6022
+    attribute: color_temp_kelvin
+    id: light_main_ct
+    on_value:
+      - lambda: |-
+          if (id(light_main_editing) &&
+              (int32_t)(millis() - id(light_main_hold_deadline)) >= 0) {
+            id(light_main_editing) = false;
+          }
+          if (!id(light_main_editing) && !isnan(x)) {
+            float k = x;
+            if (k < 2000.0f) k = 2000.0f;
+            if (k > 6535.0f) k = 6535.0f;
+            id(light_pending_ct) = k;
+          }
+      - if:
+          condition:
+            lambda: 'return !id(light_main_editing) && !isnan(x);'
+          then:
+            - lvgl.slider.update:
+                id: light_ct_slider
+                value: !lambda |-
+                  float k = x;
+                  if (k < 2000.0f) k = 2000.0f;
+                  if (k > 6535.0f) k = 6535.0f;
+                  return (int)roundf(8535.0f - k);
+
   - platform: homeassistant
     entity_id: sensor.3d_drucker_power
     id: printer_power_value
@@ -694,6 +759,40 @@ text_sensor:
                 id: main_fan_mode_icon
                 text: "$fan"
 
+  # Light hue/saturation. The hs_color attribute is a tuple, so it arrives as
+  # a string like "(5.669, 85.827)" and is parsed here; a numeric sensor
+  # would only yield NaN. Updates the two picker sliders when not editing.
+  - platform: homeassistant
+    entity_id: light.h6022
+    attribute: hs_color
+    id: light_main_hs
+    on_value:
+      - lambda: |-
+          if (id(light_main_editing) &&
+              (int32_t)(millis() - id(light_main_hold_deadline)) >= 0) {
+            id(light_main_editing) = false;
+          }
+          if (id(light_main_editing)) return;
+          float h = 0.0f, s = 0.0f;
+          if (sscanf(x.c_str(), "%*[^0-9.]%f%*[^0-9.]%f", &h, &s) == 2) {
+            if (h < 0.0f) h = 0.0f;
+            if (h > 360.0f) h = 360.0f;
+            if (s < 0.0f) s = 0.0f;
+            if (s > 100.0f) s = 100.0f;
+            id(light_pending_hue) = h;
+            id(light_pending_sat) = s;
+          }
+      - if:
+          condition:
+            lambda: 'return !id(light_main_editing);'
+          then:
+            - lvgl.slider.update:
+                id: light_hue_slider
+                value: !lambda 'return (int)roundf(id(light_pending_hue));'
+            - lvgl.slider.update:
+                id: light_sat_slider
+                value: !lambda 'return (int)roundf(id(light_pending_sat));'
+
   - platform: homeassistant
     entity_id: sensor.3d_drucker_druckstatus
     id: printer_status_value
@@ -787,5 +886,20 @@ binary_sensor:
       then:
         - lvgl.widget.update:
             id: main_fan_osc_chip
+            state:
+              checked: !lambda return x;
+
+  # ===========================================================================
+  # LIGHT (Lampe tab of the dashboard stack widget)
+  # ===========================================================================
+  # Govee desk light on/off state -> power button checked (green).
+  - platform: homeassistant
+    id: light_main_power
+    entity_id: light.h6022
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - lvgl.widget.update:
+            id: light_power_button
             state:
               checked: !lambda return x;
