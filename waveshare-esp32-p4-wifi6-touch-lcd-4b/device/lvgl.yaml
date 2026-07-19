@@ -1859,29 +1859,12 @@ lvgl:
                                 flex_align_cross: center
                                 flex_align_track: center
                               widgets:
-                                - obj:
-                                    width: SIZE_CONTENT
-                                    height: SIZE_CONTENT
-                                    bg_opa: TRANSP
-                                    border_width: 0
-                                    pad_all: 0
-                                    scrollbar_mode: "off"
-                                    clickable: false
-                                    layout:
-                                      type: flex
-                                      flex_flow: row
-                                      flex_align_cross: center
-                                      flex_align_track: center
-                                      pad_column: 8
-                                    widgets:
-                                      - label:
-                                          text_font: icon_font_small
-                                          text_color: $accent_green
-                                          text: $calendar
-                                      - label:
-                                          text: "Termine"
-                                          text_font: roboto17_font
-                                          text_color: $text_primary
+                                # Icon only -- the title text plus five chips
+                                # would overflow the card width.
+                                - label:
+                                    text_font: icon_font_small
+                                    text_color: $accent_green
+                                    text: $calendar
                                 - obj:
                                     width: SIZE_CONTENT
                                     height: SIZE_CONTENT
@@ -2063,7 +2046,8 @@ lvgl:
                                           text: ""
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-                                          width: 150
+                                          width: 185
+                                          long_mode: clip
                                       - label:
                                           id: cal_title_0
                                           text: ""
@@ -2104,7 +2088,8 @@ lvgl:
                                           text: ""
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-                                          width: 150
+                                          width: 185
+                                          long_mode: clip
                                       - label:
                                           id: cal_title_1
                                           text: ""
@@ -2145,7 +2130,8 @@ lvgl:
                                           text: ""
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-                                          width: 150
+                                          width: 185
+                                          long_mode: clip
                                       - label:
                                           id: cal_title_2
                                           text: ""
@@ -2186,7 +2172,8 @@ lvgl:
                                           text: ""
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-                                          width: 150
+                                          width: 185
+                                          long_mode: clip
                                       - label:
                                           id: cal_title_3
                                           text: ""
@@ -2227,7 +2214,8 @@ lvgl:
                                           text: ""
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-                                          width: 150
+                                          width: 185
+                                          long_mode: clip
                                       - label:
                                           id: cal_title_4
                                           text: ""
@@ -2268,7 +2256,8 @@ lvgl:
                                           text: ""
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-                                          width: 150
+                                          width: 185
+                                          long_mode: clip
                                       - label:
                                           id: cal_title_5
                                           text: ""
