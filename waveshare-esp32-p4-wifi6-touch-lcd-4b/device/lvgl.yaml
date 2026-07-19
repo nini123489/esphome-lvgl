@@ -358,13 +358,14 @@ script:
           text:
             format: "%.1f°"
             args: [ 'id(heat_main_pending_target)' ]
-      - lvgl.arc.update:
-          id: main_heat_arc
-          value: !lambda |-
-            int v = (int)roundf(id(heat_main_pending_target) * 2.0f);
-            if (v < 20) v = 20;
-            if (v > 60) v = 60;
-            return v;
+      # Raw call, NOT lvgl.arc.update: the declarative update action fires
+      # lv_update_event, which ESPHome also routes into the arc's on_value --
+      # that would re-trigger the send pipeline from a programmatic update.
+      - lambda: |-
+          int v = (int)roundf(id(heat_main_pending_target) * 2.0f);
+          if (v < 20) v = 20;
+          if (v > 60) v = 60;
+          lv_arc_set_value(id(main_heat_arc), v);
 
   # Debounced send: restarted on every local edit, so exactly one
   # climate.set_temperature call goes out 2s after the last change.
@@ -394,9 +395,11 @@ script:
       - lvgl.arc.update:
           id: heating_track_arc
           value: !lambda return (int)roundf(id(heating_lab_pending_target) * 2.0f);
-      - lvgl.arc.update:
-          id: heating_target_dot_arc
-          value: !lambda return (int)roundf(id(heating_lab_pending_target) * 2.0f);
+      # Raw call: lvgl.arc.update would fire lv_update_event into this arc's
+      # on_value and re-trigger its send pipeline (see heat_main_apply_local).
+      - lambda: |-
+          lv_arc_set_value(id(heating_target_dot_arc),
+                           (int)roundf(id(heating_lab_pending_target) * 2.0f));
       - lvgl.arc.update:
           id: heating_delta_arc
           value: !lambda |-
@@ -444,13 +447,12 @@ script:
           text:
             format: "%.0f%%"
             args: [ 'id(fan_main_pending_pct)' ]
-      - lvgl.arc.update:
-          id: main_fan_arc
-          value: !lambda |-
-            int v = (int)roundf(id(fan_main_pending_pct));
-            if (v < 1) v = 1;
-            if (v > 100) v = 100;
-            return v;
+      # Raw call for the same reason as in heat_main_apply_local.
+      - lambda: |-
+          int v = (int)roundf(id(fan_main_pending_pct));
+          if (v < 1) v = 1;
+          if (v > 100) v = 100;
+          lv_arc_set_value(id(main_fan_arc), v);
 
   - id: fan_main_send_pct
     mode: restart

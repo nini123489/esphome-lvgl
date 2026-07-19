@@ -179,9 +179,8 @@ sensor:
             - lvgl.arc.update:
                 id: heating_track_arc
                 value: !lambda return (int)roundf(x * 2.0f);
-            - lvgl.arc.update:
-                id: heating_target_dot_arc
-                value: !lambda return (int)roundf(x * 2.0f);
+            # Raw call: same lv_update_event feedback concern as main_heat_arc.
+            - lambda: 'lv_arc_set_value(id(heating_target_dot_arc), (int)roundf(x * 2.0f));'
             - lvgl.arc.update:
                 id: heating_delta_arc
                 value: !lambda |-
@@ -249,13 +248,14 @@ sensor:
                   format: "%.1f°"
                   args: [ 'x' ]
             # Arc scale is degrees x2 (20..60 = 10..30 degC), clamped.
-            - lvgl.arc.update:
-                id: main_heat_arc
-                value: !lambda |-
-                  int v = (int)roundf(x * 2.0f);
-                  if (v < 20) v = 20;
-                  if (v > 60) v = 60;
-                  return v;
+            # Raw call, NOT lvgl.arc.update: the update action fires
+            # lv_update_event into the arc's on_value, which would loop the
+            # HA echo straight back into the send pipeline.
+            - lambda: |-
+                int v = (int)roundf(x * 2.0f);
+                if (v < 20) v = 20;
+                if (v > 60) v = 60;
+                lv_arc_set_value(id(main_heat_arc), v);
 
   # ===========================================================================
   # FAN — speed + sleep timer (Ventilator tab)
@@ -283,13 +283,15 @@ sensor:
                 text:
                   format: "%.0f%%"
                   args: [ 'x' ]
-            - lvgl.arc.update:
-                id: main_fan_arc
-                value: !lambda |-
-                  int v = (int)roundf(x);
-                  if (v < 1) v = 1;
-                  if (v > 100) v = 100;
-                  return v;
+            # Raw call, NOT lvgl.arc.update: the update action fires
+            # lv_update_event into the arc's on_value -- at boot the first
+            # pushed percentage would then trigger fan.set_percentage and
+            # switch the fan ON.
+            - lambda: |-
+                int v = (int)roundf(x);
+                if (v < 1) v = 1;
+                if (v > 100) v = 100;
+                lv_arc_set_value(id(main_fan_arc), v);
 
   # Off-delay in minutes (0..480). 0 means "no timer running".
   - platform: homeassistant
@@ -330,13 +332,14 @@ sensor:
                 text:
                   format: "%.0f%%"
                   args: [ 'x / 2.55f' ]
-            - lvgl.slider.update:
-                id: light_brightness_slider
-                value: !lambda |-
-                  int v = (int)roundf(x / 2.55f);
-                  if (v < 1) v = 1;
-                  if (v > 100) v = 100;
-                  return v;
+            # Raw call, NOT lvgl.slider.update: the update action fires
+            # lv_update_event into the slider's on_value, which would set the
+            # editing guard from a mere HA echo and block syncs for 15s.
+            - lambda: |-
+                int v = (int)roundf(x / 2.55f);
+                if (v < 1) v = 1;
+                if (v > 100) v = 100;
+                lv_slider_set_value(id(light_brightness_slider), v, LV_ANIM_OFF);
 
   # Color temperature in Kelvin. The slider runs inverted (warm at the top),
   # so the widget value is 8535 - kelvin; HA's reported minimum of 15 K is an
@@ -361,13 +364,12 @@ sensor:
           condition:
             lambda: 'return !id(light_main_editing) && !isnan(x);'
           then:
-            - lvgl.slider.update:
-                id: light_ct_slider
-                value: !lambda |-
-                  float k = x;
-                  if (k < 2000.0f) k = 2000.0f;
-                  if (k > 6535.0f) k = 6535.0f;
-                  return (int)roundf(8535.0f - k);
+            # Raw call: same lv_update_event concern as the brightness slider.
+            - lambda: |-
+                float k = x;
+                if (k < 2000.0f) k = 2000.0f;
+                if (k > 6535.0f) k = 6535.0f;
+                lv_slider_set_value(id(light_ct_slider), (int)roundf(8535.0f - k), LV_ANIM_OFF);
 
   - platform: homeassistant
     entity_id: sensor.3d_drucker_power
@@ -786,12 +788,12 @@ text_sensor:
           condition:
             lambda: 'return !id(light_main_editing);'
           then:
-            - lvgl.slider.update:
-                id: light_hue_slider
-                value: !lambda 'return (int)roundf(id(light_pending_hue));'
-            - lvgl.slider.update:
-                id: light_sat_slider
-                value: !lambda 'return (int)roundf(id(light_pending_sat));'
+            # Raw calls: same lv_update_event concern as the brightness slider.
+            - lambda: |-
+                lv_slider_set_value(id(light_hue_slider),
+                                    (int)roundf(id(light_pending_hue)), LV_ANIM_OFF);
+                lv_slider_set_value(id(light_sat_slider),
+                                    (int)roundf(id(light_pending_sat)), LV_ANIM_OFF);
 
   # Light RGB color. Tints the slider knobs and the brightness fill in the
   # lamp's current color (like the HA card). Tuple attribute -> text sensor;
