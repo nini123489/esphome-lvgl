@@ -159,13 +159,12 @@ sensor:
     id: heating_target_temperature
     attribute: temperature
     on_value:
-      # Local-echo guard, same mechanism as heating_main_target_temp below.
+      # Local-echo guard, same mechanism as heating_main_target_temp below:
+      # local value stays authoritative for 15s after the last edit.
       - lambda: |-
-          if (id(heating_lab_editing)) {
-            bool caught_up = !isnan(id(heating_lab_pending_target)) &&
-                             fabsf(x - id(heating_lab_pending_target)) < 0.25f;
-            bool timed_out = (int32_t)(millis() - id(heating_lab_hold_deadline)) >= 0;
-            if (caught_up || timed_out) id(heating_lab_editing) = false;
+          if (id(heating_lab_editing) &&
+              (int32_t)(millis() - id(heating_lab_hold_deadline)) >= 0) {
+            id(heating_lab_editing) = false;
           }
           if (!id(heating_lab_editing)) id(heating_lab_pending_target) = x;
       - if:
@@ -230,15 +229,14 @@ sensor:
     attribute: temperature
     on_value:
       # Local-echo guard: while the display is editing the setpoint, HA state
-      # must not overwrite the widgets. Editing ends once HA echoes the pending
-      # value (|x - pending| < 0.25, safely below the 0.5 step) or the 15s
-      # deadline passes (rollover-safe millis compare).
+      # must not overwrite the widgets. The local value stays authoritative for
+      # a fixed 15s after the last edit (rollover-safe millis compare) — the
+      # Eve Thermo (Thread) echoes stale intermediate values for a while, so
+      # releasing early on a matching echo makes the display jump around.
       - lambda: |-
-          if (id(heat_main_editing)) {
-            bool caught_up = !isnan(id(heat_main_pending_target)) &&
-                             fabsf(x - id(heat_main_pending_target)) < 0.25f;
-            bool timed_out = (int32_t)(millis() - id(heat_main_hold_deadline)) >= 0;
-            if (caught_up || timed_out) id(heat_main_editing) = false;
+          if (id(heat_main_editing) &&
+              (int32_t)(millis() - id(heat_main_hold_deadline)) >= 0) {
+            id(heat_main_editing) = false;
           }
           if (!id(heat_main_editing)) id(heat_main_pending_target) = x;
       - if:
@@ -250,13 +248,13 @@ sensor:
                 text:
                   format: "%.1f°"
                   args: [ 'x' ]
-            # Arc scale is degrees x2 (20..64 = 10..32 degC), clamped.
+            # Arc scale is degrees x2 (20..60 = 10..30 degC), clamped.
             - lvgl.arc.update:
                 id: main_heat_arc
                 value: !lambda |-
                   int v = (int)roundf(x * 2.0f);
                   if (v < 20) v = 20;
-                  if (v > 64) v = 64;
+                  if (v > 60) v = 60;
                   return v;
 
   # ===========================================================================

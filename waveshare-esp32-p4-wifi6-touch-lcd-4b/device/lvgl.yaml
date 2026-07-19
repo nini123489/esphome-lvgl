@@ -311,7 +311,7 @@ script:
           value: !lambda |-
             int v = (int)roundf(id(heat_main_pending_target) * 2.0f);
             if (v < 20) v = 20;
-            if (v > 64) v = 64;
+            if (v > 60) v = 60;
             return v;
 
   # Debounced send: restarted on every local edit, so exactly one
@@ -997,7 +997,7 @@ lvgl:
                                           }
                                           float v = base - 0.5f;
                                           if (v < 10.0f) v = 10.0f;
-                                          if (v > 32.0f) v = 32.0f;
+                                          if (v > 30.0f) v = 30.0f;
                                           id(heat_main_pending_target) = v;
                                           id(heat_main_editing) = true;
                                           id(heat_main_hold_deadline) = millis() + 15000;
@@ -1023,8 +1023,10 @@ lvgl:
                                           align: center
                                           width: 100%
                                           height: 100%
+                                          # Scale is degrees x2; the Eve Thermo
+                                          # accepts 10..30 degC (min/max_temp).
                                           min_value: 20
-                                          max_value: 64
+                                          max_value: 60
                                           value: 40
                                           start_angle: 135
                                           end_angle: 45
@@ -1088,7 +1090,7 @@ lvgl:
                                           }
                                           float v = base + 0.5f;
                                           if (v < 10.0f) v = 10.0f;
-                                          if (v > 32.0f) v = 32.0f;
+                                          if (v > 30.0f) v = 30.0f;
                                           id(heat_main_pending_target) = v;
                                           id(heat_main_editing) = true;
                                           id(heat_main_hold_deadline) = millis() + 15000;
