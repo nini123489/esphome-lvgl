@@ -139,6 +139,16 @@ globals:
     type: float
     restore_value: false
     initial_value: '4000'
+  # Calendar tab: raw event lines ("calkey|zeit|titel") pushed by the HA
+  # automation via the calendar_events api action, plus the active filter
+  # ("" = all calendars, otherwise a calkey like "plan").
+  - id: cal_events
+    type: std::vector<std::string>
+    restore_value: false
+  - id: cal_filter
+    type: std::string
+    restore_value: false
+    initial_value: '""'
 
 script:
   # Central page-navigation entry point. Takes a HA-facing label and routes to
@@ -455,6 +465,80 @@ script:
           variables:
             pct: !lambda 'return (int)roundf(id(fan_main_pending_pct));'
 
+  # Rebuild the calendar list rows from cal_events, honoring cal_filter.
+  # One raw-LVGL lambda instead of per-row declarative updates: the six rows
+  # are driven from arrays, the per-calendar dot colors are style calls, and
+  # rows beyond the match count are hidden.
+  - id: cal_render
+    then:
+      - lambda: |-
+          lv_obj_t* rows[6]   = { id(cal_row_0), id(cal_row_1), id(cal_row_2),
+                                  id(cal_row_3), id(cal_row_4), id(cal_row_5) };
+          lv_obj_t* dots[6]   = { id(cal_dot_0), id(cal_dot_1), id(cal_dot_2),
+                                  id(cal_dot_3), id(cal_dot_4), id(cal_dot_5) };
+          lv_obj_t* times[6]  = { id(cal_time_0), id(cal_time_1), id(cal_time_2),
+                                  id(cal_time_3), id(cal_time_4), id(cal_time_5) };
+          lv_obj_t* titles[6] = { id(cal_title_0), id(cal_title_1), id(cal_title_2),
+                                  id(cal_title_3), id(cal_title_4), id(cal_title_5) };
+          int shown = 0;
+          for (const auto &line : id(cal_events)) {
+            if (shown >= 6) break;
+            size_t p1 = line.find('|');
+            if (p1 == std::string::npos) continue;
+            size_t p2 = line.find('|', p1 + 1);
+            if (p2 == std::string::npos) continue;
+            std::string cal   = line.substr(0, p1);
+            std::string zeit  = line.substr(p1 + 1, p2 - p1 - 1);
+            std::string titel = line.substr(p2 + 1);
+            if (!id(cal_filter).empty() && cal != id(cal_filter)) continue;
+            lv_color_t c = lv_color_hex(0xE0B04E);            // termine (amber)
+            if (cal == "travel")   c = lv_color_hex(0x4A9BD1); // blue
+            if (cal == "pruefung") c = lv_color_hex(0xD35B5B); // red
+            if (cal == "plan")     c = lv_color_hex(0x63B08C); // green
+            lv_obj_set_style_bg_color(dots[shown], c, LV_PART_MAIN);
+            lv_label_set_text(times[shown], zeit.c_str());
+            lv_label_set_text(titles[shown], titel.c_str());
+            lv_obj_clear_flag(rows[shown], LV_OBJ_FLAG_HIDDEN);
+            shown++;
+          }
+          for (int i = shown; i < 6; i++) {
+            lv_obj_add_flag(rows[i], LV_OBJ_FLAG_HIDDEN);
+          }
+          if (shown == 0) {
+            lv_obj_clear_flag(id(cal_empty_label), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(cal_empty_label), LV_OBJ_FLAG_HIDDEN);
+          }
+
+  # Calendar filter chips, radio style like stack_show_tab: set the filter,
+  # highlight the matching chip, re-render the list.
+  - id: cal_set_filter
+    parameters:
+      filter: string
+    then:
+      - lambda: 'id(cal_filter) = filter;'
+      - lvgl.widget.update:
+          id: cal_chip_all
+          state:
+            checked: !lambda 'return filter == "";'
+      - lvgl.widget.update:
+          id: cal_chip_travel
+          state:
+            checked: !lambda 'return filter == "travel";'
+      - lvgl.widget.update:
+          id: cal_chip_termine
+          state:
+            checked: !lambda 'return filter == "termine";'
+      - lvgl.widget.update:
+          id: cal_chip_pruefung
+          state:
+            checked: !lambda 'return filter == "pruefung";'
+      - lvgl.widget.update:
+          id: cal_chip_plan
+          state:
+            checked: !lambda 'return filter == "plan";'
+      - script.execute: cal_render
+
   # Central stack-tab switcher: shows the chosen tab, updates the tab-strip
   # checked states and mirrors the choice into the HA-facing "Stack-Widget"
   # select (publish_state fires the select's on_value, which calls this
@@ -473,6 +557,9 @@ script:
           id: main_stack_fan
           hidden: !lambda 'return tab != "Ventilator";'
       - lvgl.widget.update:
+          id: main_stack_cal
+          hidden: !lambda 'return tab != "Kalender";'
+      - lvgl.widget.update:
           id: main_stack_light
           hidden: !lambda 'return tab != "Lampe";'
       - lvgl.widget.update:
@@ -486,6 +573,10 @@ script:
           id: main_tab_fan_button
           state:
             checked: !lambda 'return tab == "Ventilator";'
+      - lvgl.widget.update:
+          id: main_tab_cal_button
+          state:
+            checked: !lambda 'return tab == "Kalender";'
       - lvgl.widget.update:
           id: main_tab_light_button
           state:
@@ -1731,6 +1822,461 @@ lvgl:
                                     data:
                                       entity_id: scene.licht_aus
 
+                    # ===== TAB: Termine (Kalender-Liste) =====
+                    # Filled by the HA automation via the calendar_events api
+                    # action (device.yaml) -> cal_render. The chips filter by
+                    # calendar; rows are fixed widgets toggled by cal_render.
+                    - obj:
+                        id: main_stack_cal
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 14
+                        scrollbar_mode: "off"
+                        scrollable: false
+                        hidden: true
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          pad_row: 10
+                        widgets:
+
+                          # Header: title left, filter chips right
+                          - obj:
+                              width: 100%
+                              height: 34
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: space_between
+                                flex_align_cross: center
+                                flex_align_track: center
+                              widgets:
+                                - obj:
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 8
+                                    widgets:
+                                      - label:
+                                          text_font: icon_font_small
+                                          text_color: $accent_green
+                                          text: $calendar
+                                      - label:
+                                          text: "Termine"
+                                          text_font: roboto17_font
+                                          text_color: $text_primary
+                                - obj:
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 6
+                                    widgets:
+                                      - button:
+                                          id: cal_chip_all
+                                          width: SIZE_CONTENT
+                                          height: 34
+                                          pad_all: 0
+                                          pad_left: 12
+                                          pad_right: 12
+                                          radius: 17
+                                          bg_color: $control_inner_color
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                          checkable: true
+                                          state:
+                                            checked: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "Alle"
+                                                text_font: roboto15_font
+                                          on_click:
+                                            - script.execute:
+                                                id: cal_set_filter
+                                                filter: ""
+                                      - button:
+                                          id: cal_chip_travel
+                                          width: SIZE_CONTENT
+                                          height: 34
+                                          pad_all: 0
+                                          pad_left: 12
+                                          pad_right: 12
+                                          radius: 17
+                                          bg_color: $control_inner_color
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "Reise"
+                                                text_font: roboto15_font
+                                          on_click:
+                                            - script.execute:
+                                                id: cal_set_filter
+                                                filter: "travel"
+                                      - button:
+                                          id: cal_chip_termine
+                                          width: SIZE_CONTENT
+                                          height: 34
+                                          pad_all: 0
+                                          pad_left: 12
+                                          pad_right: 12
+                                          radius: 17
+                                          bg_color: $control_inner_color
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "Term."
+                                                text_font: roboto15_font
+                                          on_click:
+                                            - script.execute:
+                                                id: cal_set_filter
+                                                filter: "termine"
+                                      - button:
+                                          id: cal_chip_pruefung
+                                          width: SIZE_CONTENT
+                                          height: 34
+                                          pad_all: 0
+                                          pad_left: 12
+                                          pad_right: 12
+                                          radius: 17
+                                          bg_color: $control_inner_color
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "Prüf."
+                                                text_font: roboto15_font
+                                          on_click:
+                                            - script.execute:
+                                                id: cal_set_filter
+                                                filter: "pruefung"
+                                      - button:
+                                          id: cal_chip_plan
+                                          width: SIZE_CONTENT
+                                          height: 34
+                                          pad_all: 0
+                                          pad_left: 12
+                                          pad_right: 12
+                                          radius: 17
+                                          bg_color: $control_inner_color
+                                          checked:
+                                            bg_color: $tint_amber
+                                            text_color: $accent_amber
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "Plan"
+                                                text_font: roboto15_font
+                                          on_click:
+                                            - script.execute:
+                                                id: cal_set_filter
+                                                filter: "plan"
+
+                          # Event list: placeholder + six fixed rows
+                          - obj:
+                              width: 100%
+                              flex_grow: 1
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              scrollable: false
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: column
+                                pad_row: 4
+                              widgets:
+                                - label:
+                                    id: cal_empty_label
+                                    text: "Keine Termine"
+                                    text_font: roboto17_font
+                                    text_color: $text_inactive
+                                - obj:
+                                    id: cal_row_0
+                                    width: 100%
+                                    height: 36
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    hidden: true
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 10
+                                    widgets:
+                                      - obj:
+                                          id: cal_dot_0
+                                          width: 10
+                                          height: 10
+                                          radius: 5
+                                          bg_color: $accent_amber
+                                          bg_opa: cover
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                      - label:
+                                          id: cal_time_0
+                                          text: ""
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                          width: 150
+                                      - label:
+                                          id: cal_title_0
+                                          text: ""
+                                          text_font: roboto17_font
+                                          text_color: $text_secondary
+                                          flex_grow: 1
+                                          long_mode: dot
+                                - obj:
+                                    id: cal_row_1
+                                    width: 100%
+                                    height: 36
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    hidden: true
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 10
+                                    widgets:
+                                      - obj:
+                                          id: cal_dot_1
+                                          width: 10
+                                          height: 10
+                                          radius: 5
+                                          bg_color: $accent_amber
+                                          bg_opa: cover
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                      - label:
+                                          id: cal_time_1
+                                          text: ""
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                          width: 150
+                                      - label:
+                                          id: cal_title_1
+                                          text: ""
+                                          text_font: roboto17_font
+                                          text_color: $text_secondary
+                                          flex_grow: 1
+                                          long_mode: dot
+                                - obj:
+                                    id: cal_row_2
+                                    width: 100%
+                                    height: 36
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    hidden: true
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 10
+                                    widgets:
+                                      - obj:
+                                          id: cal_dot_2
+                                          width: 10
+                                          height: 10
+                                          radius: 5
+                                          bg_color: $accent_amber
+                                          bg_opa: cover
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                      - label:
+                                          id: cal_time_2
+                                          text: ""
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                          width: 150
+                                      - label:
+                                          id: cal_title_2
+                                          text: ""
+                                          text_font: roboto17_font
+                                          text_color: $text_secondary
+                                          flex_grow: 1
+                                          long_mode: dot
+                                - obj:
+                                    id: cal_row_3
+                                    width: 100%
+                                    height: 36
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    hidden: true
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 10
+                                    widgets:
+                                      - obj:
+                                          id: cal_dot_3
+                                          width: 10
+                                          height: 10
+                                          radius: 5
+                                          bg_color: $accent_amber
+                                          bg_opa: cover
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                      - label:
+                                          id: cal_time_3
+                                          text: ""
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                          width: 150
+                                      - label:
+                                          id: cal_title_3
+                                          text: ""
+                                          text_font: roboto17_font
+                                          text_color: $text_secondary
+                                          flex_grow: 1
+                                          long_mode: dot
+                                - obj:
+                                    id: cal_row_4
+                                    width: 100%
+                                    height: 36
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    hidden: true
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 10
+                                    widgets:
+                                      - obj:
+                                          id: cal_dot_4
+                                          width: 10
+                                          height: 10
+                                          radius: 5
+                                          bg_color: $accent_amber
+                                          bg_opa: cover
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                      - label:
+                                          id: cal_time_4
+                                          text: ""
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                          width: 150
+                                      - label:
+                                          id: cal_title_4
+                                          text: ""
+                                          text_font: roboto17_font
+                                          text_color: $text_secondary
+                                          flex_grow: 1
+                                          long_mode: dot
+                                - obj:
+                                    id: cal_row_5
+                                    width: 100%
+                                    height: 36
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    hidden: true
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 10
+                                    widgets:
+                                      - obj:
+                                          id: cal_dot_5
+                                          width: 10
+                                          height: 10
+                                          radius: 5
+                                          bg_color: $accent_amber
+                                          bg_opa: cover
+                                          border_width: 0
+                                          pad_all: 0
+                                          scrollbar_mode: "off"
+                                          clickable: false
+                                      - label:
+                                          id: cal_time_5
+                                          text: ""
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                          width: 150
+                                      - label:
+                                          id: cal_title_5
+                                          text: ""
+                                          text_font: roboto17_font
+                                          text_color: $text_secondary
+                                          flex_grow: 1
+                                          long_mode: dot
+
                     # ===== TAB: Lampe (light.h6022, Govee Desk Light) =====
                     # HA-light-card style: one big vertical slider area on the
                     # right, view/power buttons stacked vertically on the
@@ -2231,14 +2777,16 @@ lvgl:
                     flex_align_main: center
                     flex_align_cross: center
                     flex_align_track: center
-                    pad_row: 10
+                    # 5 x 52px buttons + 4 x 8px gaps = 292px: still fits the
+                    # strip in the smallest card state (two notifications).
+                    pad_row: 8
                   widgets:
                     - button:
                         id: main_tab_heat_button
                         width: 96
-                        height: 64
+                        height: 52
                         pad_all: 0
-                        radius: 20
+                        radius: 18
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -2262,9 +2810,9 @@ lvgl:
                     - button:
                         id: main_tab_fan_button
                         width: 96
-                        height: 64
+                        height: 52
                         pad_all: 0
-                        radius: 20
+                        radius: 18
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -2286,11 +2834,37 @@ lvgl:
                               id: stack_show_tab
                               tab: "Ventilator"
                     - button:
+                        id: main_tab_cal_button
+                        width: 96
+                        height: 52
+                        pad_all: 0
+                        radius: 18
+                        # Inactive tabs carry no background of their own, only
+                        # a dimmed icon; the active one gets a muted tint.
+                        bg_opa: TRANSP
+                        text_color: $tab_icon_inactive
+                        checked:
+                          bg_color: $tint_green
+                          bg_opa: cover
+                          text_color: $accent_green
+                        checkable: true
+                        state:
+                          checked: false
+                        widgets:
+                          - label:
+                              align: center
+                              text_font: icon_font_small
+                              text: $calendar
+                        on_click:
+                          - script.execute:
+                              id: stack_show_tab
+                              tab: "Kalender"
+                    - button:
                         id: main_tab_light_button
                         width: 96
-                        height: 64
+                        height: 52
                         pad_all: 0
-                        radius: 20
+                        radius: 18
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP
@@ -2314,9 +2888,9 @@ lvgl:
                     - button:
                         id: main_tab_scenes_button
                         width: 96
-                        height: 64
+                        height: 52
                         pad_all: 0
-                        radius: 20
+                        radius: 18
                         # Inactive tabs carry no background of their own, only
                         # a dimmed icon; the active one gets a muted tint.
                         bg_opa: TRANSP

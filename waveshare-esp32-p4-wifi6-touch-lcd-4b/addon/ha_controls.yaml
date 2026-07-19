@@ -45,6 +45,7 @@ select:
     options:
       - "Heizung"
       - "Ventilator"
+      - "Kalender"
       - "Lampe"
       - "Szenen"
     initial_option: "Heizung"

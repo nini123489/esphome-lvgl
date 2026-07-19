@@ -91,6 +91,15 @@ ota:
   - platform: esphome
 
 api:
+  # Ask HA to (re)send the calendar list as soon as it (re)connects, so the
+  # Termine tab is filled right after a device reboot or HA restart instead
+  # of waiting for the automation's next 15-minute tick.
+  on_client_connected:
+    - delay: 3s
+    - homeassistant.service:
+        service: automation.trigger
+        data:
+          entity_id: automation.display_kalender_push
   actions:
     # HA-callable: trigger an on-display notification.
     # Usage from Home Assistant:
@@ -111,6 +120,74 @@ api:
             title: !lambda 'return title;'
             message: !lambda 'return message;'
             expire_hours: !lambda 'return expire_hours;'
+
+    # HA-callable: replace the Termine tab's event list. `events` is one
+    # newline-separated string, one event per line: "calkey|zeit|titel"
+    # (calkeys: travel / termine / pruefung / plan), already sorted by start.
+    # Fed by this automation, which must exist in Home Assistant under the
+    # entity id automation.display_kalender_push (the on_client_connected
+    # hook above triggers it after every reboot/reconnect):
+    #
+    #   alias: Display Kalender Push
+    #   triggers:
+    #     - trigger: time_pattern
+    #       minutes: "/15"
+    #     - trigger: homeassistant
+    #       event: start
+    #   actions:
+    #     - action: calendar.get_events
+    #       target:
+    #         entity_id:
+    #           - calendar.ohm_travel
+    #           - calendar.termine
+    #           - calendar.ohm_prufungen
+    #           - calendar.ohm_stundenplan
+    #       data:
+    #         start_date_time: "{{ now().isoformat() }}"
+    #         duration: { days: 7 }
+    #       response_variable: ev
+    #     - action: esphome.<geraetename>_calendar_events
+    #       data:
+    #         events: >-
+    #           {% set keys = {'calendar.ohm_travel': 'travel',
+    #                          'calendar.termine': 'termine',
+    #                          'calendar.ohm_prufungen': 'pruefung',
+    #                          'calendar.ohm_stundenplan': 'plan'} %}
+    #           {% set wd = ['Mo','Di','Mi','Do','Fr','Sa','So'] %}
+    #           {% set ns = namespace(items=[]) %}
+    #           {% for cal, data in ev.items() %}
+    #             {% for e in data['events'] %}
+    #               {% set dt = e.start | as_datetime | as_local %}
+    #               {% set allday = 'T' not in e.start %}
+    #               {% if dt.date() == now().date() %}
+    #                 {% set tag = 'Heute' %}
+    #               {% elif dt.date() == (now() + timedelta(days=1)).date() %}
+    #                 {% set tag = 'Morgen' %}
+    #               {% else %}
+    #                 {% set tag = wd[dt.weekday()] ~ ' ' ~ dt.strftime('%d.%m.') %}
+    #               {% endif %}
+    #               {% set zeit = tag if allday else tag ~ ' ' ~ dt.strftime('%H:%M') %}
+    #               {% set line = e.start ~ '~' ~ keys[cal] ~ '|' ~ zeit ~ '|'
+    #                             ~ (e.summary | replace('|', ' ') | replace('\n', ' ')) %}
+    #               {% set ns.items = ns.items + [line] %}
+    #             {% endfor %}
+    #           {% endfor %}
+    #           {{ (ns.items | sort | join('\n')) | regex_replace('(^|\n)[^~\n]*~', '\\1') }}
+    - action: calendar_events
+      variables:
+        events: string
+      then:
+        - lambda: |-
+            id(cal_events).clear();
+            size_t pos = 0;
+            while (pos < events.size()) {
+              size_t nl = events.find('\n', pos);
+              if (nl == std::string::npos) nl = events.size();
+              std::string line = events.substr(pos, nl - pos);
+              if (!line.empty()) id(cal_events).push_back(line);
+              pos = nl + 1;
+            }
+        - script.execute: cal_render
 
 logger:
   hardware_uart: UART0

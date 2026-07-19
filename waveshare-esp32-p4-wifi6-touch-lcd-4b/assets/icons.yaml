@@ -76,6 +76,7 @@ font:
       "\U000F0238",  # mdi-fire (heating card title)
       "\U000F032A",  # mdi-leaf (fan natural-breeze mode)
       "\U000F095F",  # mdi-desk-lamp (Lampe tab)
+      "\U000F00ED",  # mdi-calendar (Termine tab)
       "\U000F00DD",  # mdi-brightness-6 (light brightness view)
       "\U000F03D8",  # mdi-palette (light color view)
       "\U000F05A8",  # mdi-white-balance-sunny (light color-temp view)
@@ -138,6 +139,7 @@ substitutions:
   fire:               "\U000F0238"
   leaf:               "\U000F032A"
   desk_lamp:          "\U000F095F"
+  calendar:           "\U000F00ED"
   brightness_mid:     "\U000F00DD"
   palette:            "\U000F03D8"
   wb_sunny:           "\U000F05A8"
