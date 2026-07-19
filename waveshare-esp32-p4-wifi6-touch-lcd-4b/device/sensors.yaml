@@ -656,9 +656,9 @@ text_sensor:
             if (c == "windy")           return std::string("\xF3\xB0\x96\x9D");
             return std::string("\xF3\xB0\x96\x90");
 
-  # Eve thermostat HVAC mode. Drives the Heizung tab's power button: any
-  # non-"off" mode -> checked (green). The button's on_click also reads this
-  # value to decide which mode to send next.
+  # Eve thermostat HVAC mode. Drives the Heizung tab's power icon button
+  # (bottom-right corner): any non-"off" mode -> checked (green). The
+  # button's on_click also reads this value to decide which mode to send.
   - platform: homeassistant
     entity_id: climate.eve_thermo_20ebp1701
     id: heating_main_hvac_mode
@@ -667,11 +667,6 @@ text_sensor:
           id: main_heat_power_button
           state:
             checked: !lambda 'return x != std::string("off");'
-      - lvgl.label.update:
-          id: main_heat_power_label
-          text: !lambda |-
-            return x != std::string("off") ? std::string("Eingeschaltet")
-                                           : std::string("Ausgeschaltet");
 
   # Fan preset. The entity spells its modes "Direkte brise" / "Natürliche brise"
   # (lowercase b). Drives the label above the speed arc and the mode toggle

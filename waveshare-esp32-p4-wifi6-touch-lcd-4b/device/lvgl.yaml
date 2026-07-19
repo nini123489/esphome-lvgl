@@ -430,65 +430,48 @@ script:
 
   # Resize the stack-card arcs to the space the notification row leaves over.
   # The row is SIZE_CONTENT (one 46px line per notification), so there are
-  # four states: row collapsed 280px, empty placeholder 232px, one
-  # notification 212px, two notifications 160px. The top label rides at
-  # -(2/7) of the box size; the value font drops one size in the smallest
-  # state. Called from notif_render, which owns the row's hidden state.
+  # four states: row collapsed 340px, empty placeholder 300px, one
+  # notification 280px, two notifications 228px. The top label rides at
+  # -(2/7) of the box size. Called from notif_render, which owns the row's
+  # hidden state.
   - id: stack_arc_resize
     then:
       - lvgl.widget.update:
           id: main_heat_arc_box
           width: !lambda |-
-            if (id(notification_count) >= 2) return 160;
-            if (id(notification_count) == 1) return 212;
-            return id(collapse_notify).state ? 280 : 232;
+            if (id(notification_count) >= 2) return 228;
+            if (id(notification_count) == 1) return 280;
+            return id(collapse_notify).state ? 340 : 300;
           height: !lambda |-
-            if (id(notification_count) >= 2) return 160;
-            if (id(notification_count) == 1) return 212;
-            return id(collapse_notify).state ? 280 : 232;
+            if (id(notification_count) >= 2) return 228;
+            if (id(notification_count) == 1) return 280;
+            return id(collapse_notify).state ? 340 : 300;
       - lvgl.widget.update:
           id: main_fan_arc_box
           width: !lambda |-
-            if (id(notification_count) >= 2) return 160;
-            if (id(notification_count) == 1) return 212;
-            return id(collapse_notify).state ? 280 : 232;
+            if (id(notification_count) >= 2) return 228;
+            if (id(notification_count) == 1) return 280;
+            return id(collapse_notify).state ? 340 : 300;
           height: !lambda |-
-            if (id(notification_count) >= 2) return 160;
-            if (id(notification_count) == 1) return 212;
-            return id(collapse_notify).state ? 280 : 232;
+            if (id(notification_count) >= 2) return 228;
+            if (id(notification_count) == 1) return 280;
+            return id(collapse_notify).state ? 340 : 300;
       - lvgl.label.update:
           id: main_heat_current_label
           y: !lambda |-
             int s;
-            if (id(notification_count) >= 2) s = 160;
-            else if (id(notification_count) == 1) s = 212;
-            else s = id(collapse_notify).state ? 280 : 232;
+            if (id(notification_count) >= 2) s = 228;
+            else if (id(notification_count) == 1) s = 280;
+            else s = id(collapse_notify).state ? 340 : 300;
             return -(s * 2) / 7;
       - lvgl.label.update:
           id: main_fan_mode_label
           y: !lambda |-
             int s;
-            if (id(notification_count) >= 2) s = 160;
-            else if (id(notification_count) == 1) s = 212;
-            else s = id(collapse_notify).state ? 280 : 232;
+            if (id(notification_count) >= 2) s = 228;
+            else if (id(notification_count) == 1) s = 280;
+            else s = id(collapse_notify).state ? 340 : 300;
             return -(s * 2) / 7;
-      - if:
-          condition:
-            lambda: 'return id(notification_count) >= 2;'
-          then:
-            - lvgl.label.update:
-                id: main_heat_target_label
-                text_font: roboto36_font
-            - lvgl.label.update:
-                id: main_fan_speed_label
-                text_font: roboto36_font
-          else:
-            - lvgl.label.update:
-                id: main_heat_target_label
-                text_font: roboto44_font
-            - lvgl.label.update:
-                id: main_fan_speed_label
-                text_font: roboto44_font
 
 interval:
   - interval: 30s
@@ -1018,11 +1001,12 @@ lvgl:
                   clickable: false
                   widgets:
                     # ===== TAB: Heizung (climate.eve_thermo_20ebp1701) =====
-                    # Layout: title / arc with the -/+ circles flanking it /
-                    # full-width power button. The arc carries the target
-                    # temperature; the arc's own scale is degrees x2 (20..64 =
-                    # 10..32 degC) because LVGL arcs are integer-valued -- the
-                    # same convention the heating detail page uses.
+                    # Layout: title row, then one free-form area: the dial
+                    # centred, -/+ inside its bottom gap, and the power toggle
+                    # as an icon button in the bottom-right corner. The arc
+                    # carries the target temperature; its scale is degrees x2
+                    # because LVGL arcs are integer-valued -- the same
+                    # convention the heating detail page uses.
                     - obj:
                         id: main_stack_heat
                         width: 100%
@@ -1069,10 +1053,12 @@ lvgl:
                           # Big dial: arc filling the middle, current temp on
                           # top, target in the center, -/+ inside the bottom
                           # gap of the ring (start 135 / end 45 leaves the
-                          # bottom quadrant free). The box is resized by
+                          # bottom quadrant free). No layout on this wrapper:
+                          # the dial centres itself and the power button sits
+                          # in the bottom-right corner. The box is resized by
                           # stack_arc_resize as the notification row grows and
                           # shrinks; the defaults below are the boot geometry
-                          # (empty row visible, 232px).
+                          # (empty row visible, 300px).
                           - obj:
                               width: 100%
                               flex_grow: 1
@@ -1082,17 +1068,12 @@ lvgl:
                               scrollbar_mode: "off"
                               scrollable: false
                               clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: row
-                                flex_align_main: center
-                                flex_align_cross: center
-                                flex_align_track: center
                               widgets:
                                 - obj:
                                     id: main_heat_arc_box
-                                    width: 232
-                                    height: 232
+                                    align: center
+                                    width: 300
+                                    height: 300
                                     bg_opa: TRANSP
                                     border_width: 0
                                     pad_all: 0
@@ -1135,7 +1116,7 @@ lvgl:
                                       - label:
                                           id: main_heat_current_label
                                           align: center
-                                          y: -66
+                                          y: -85
                                           text: "Ist --.-°"
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
@@ -1215,60 +1196,39 @@ lvgl:
                                             - script.execute: heat_main_apply_local
                                             - script.execute: heat_main_send_target
 
-                          # Power toggle, full width
-                          - button:
-                              id: main_heat_power_button
-                              width: 100%
-                              height: 64
-                              pad_all: 0
-                              radius: $radius
-                              bg_color: $control_inner_color
-                              text_color: $text_secondary
-                              border_width: 1
-                              border_color: $border_circle
-                              checked:
-                                bg_color: $tint_green
-                                text_color: $accent_green
-                                border_color: $accent_green
-                              checkable: true
-                              widgets:
-                                - obj:
-                                    align: center
-                                    width: SIZE_CONTENT
-                                    height: SIZE_CONTENT
-                                    bg_opa: TRANSP
-                                    border_width: 0
+                                # Power toggle: icon-only, bottom-right corner
+                                # of the card (green when heating is on).
+                                - button:
+                                    id: main_heat_power_button
+                                    align: bottom_right
+                                    width: 56
+                                    height: 56
                                     pad_all: 0
-                                    scrollbar_mode: "off"
-                                    clickable: false
-                                    layout:
-                                      type: flex
-                                      flex_flow: row
-                                      flex_align_cross: center
-                                      flex_align_track: center
-                                      pad_column: 10
+                                    radius: 28
+                                    bg_color: $control_inner_color
+                                    text_color: $text_secondary
+                                    border_width: 1
+                                    border_color: $border_circle
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                      border_color: $accent_green
+                                    checkable: true
                                     widgets:
                                       - label:
+                                          align: center
                                           text_font: icon_font_small
                                           text: $power
-                                      - label:
-                                          id: main_heat_power_label
-                                          text: "Ausgeschaltet"
-                                          text_font: roboto19_font
-                                          # Explicitly near-white: inheriting
-                                          # the button's green when checked put
-                                          # green text on a green fill.
-                                          text_color: $text_primary
-                              on_click:
-                                - homeassistant.service:
-                                    service: climate.set_hvac_mode
-                                    data:
-                                      entity_id: climate.eve_thermo_20ebp1701
-                                      hvac_mode: !lambda |-
-                                        if (id(heating_main_hvac_mode).has_state() && id(heating_main_hvac_mode).state != "off") {
-                                          return std::string("off");
-                                        }
-                                        return std::string("heat");
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: climate.set_hvac_mode
+                                          data:
+                                            entity_id: climate.eve_thermo_20ebp1701
+                                            hvac_mode: !lambda |-
+                                              if (id(heating_main_hvac_mode).has_state() && id(heating_main_hvac_mode).state != "off") {
+                                                return std::string("off");
+                                              }
+                                              return std::string("heat");
 
 
                     # ===== TAB: Ventilator (fan.dmaker_de_454884949_p33_s_2_fan) =====
@@ -1365,7 +1325,8 @@ lvgl:
 
                           # Big dial: speed arc filling the middle, preset name
                           # on top, percentage in the center, power + mode
-                          # toggle inside the bottom gap of the ring. Same
+                          # toggle inside the bottom gap of the ring, sleep
+                          # timer compact in the bottom-right corner. Same
                           # local-echo/debounce pipeline as the heating arc;
                           # resized by stack_arc_resize like the heating box.
                           - obj:
@@ -1377,17 +1338,12 @@ lvgl:
                               scrollbar_mode: "off"
                               scrollable: false
                               clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: row
-                                flex_align_main: center
-                                flex_align_cross: center
-                                flex_align_track: center
                               widgets:
                                 - obj:
                                     id: main_fan_arc_box
-                                    width: 232
-                                    height: 232
+                                    align: center
+                                    width: 300
+                                    height: 300
                                     bg_opa: TRANSP
                                     border_width: 0
                                     pad_all: 0
@@ -1424,7 +1380,7 @@ lvgl:
                                       - label:
                                           id: main_fan_mode_label
                                           align: center
-                                          y: -66
+                                          y: -85
                                           text: "Direkt"
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
@@ -1500,44 +1456,27 @@ lvgl:
                                                     }
                                                     return std::string("Direkte brise");
 
-                          # Sleep timer. The entity's own step is 1 minute over
-                          # 0..480, which is unusable by touch, so the buttons
-                          # move in 15-minute steps and clamp to the range.
-                          # Same height as the heating tab's power button so
-                          # both dials get the same vertical space.
-                          - obj:
-                              width: 100%
-                              height: 64
-                              bg_opa: TRANSP
-                              border_width: 0
-                              pad_all: 0
-                              scrollbar_mode: "off"
-                              clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: row
-                                flex_align_main: space_between
-                                flex_align_cross: center
-                                flex_align_track: center
-                              widgets:
-                                - label:
-                                    text: "Timer"
-                                    text_font: roboto15_font
-                                    text_color: $text_tertiary
+                                # Sleep timer, compact in the bottom-right
+                                # corner. The entity's own step is 1 minute
+                                # over 0..480, which is unusable by touch, so
+                                # the buttons move in 15-minute steps and
+                                # clamp to the range.
                                 - obj:
+                                    align: bottom_right
                                     width: SIZE_CONTENT
-                                    height: SIZE_CONTENT
+                                    height: 48
                                     bg_opa: TRANSP
                                     border_width: 0
                                     pad_all: 0
                                     scrollbar_mode: "off"
+                                    scrollable: false
                                     clickable: false
                                     layout:
                                       type: flex
                                       flex_flow: row
                                       flex_align_cross: center
                                       flex_align_track: center
-                                      pad_column: 12
+                                      pad_column: 6
                                     widgets:
                                       - button:
                                           id: main_fan_timer_down
@@ -1571,8 +1510,8 @@ lvgl:
                                       - label:
                                           id: main_fan_timer_label
                                           text: "Aus"
-                                          text_font: roboto17_font
-                                          text_color: $text_primary
+                                          text_font: roboto15_font
+                                          text_color: $text_tertiary
                                       - button:
                                           id: main_fan_timer_up
                                           width: 48
