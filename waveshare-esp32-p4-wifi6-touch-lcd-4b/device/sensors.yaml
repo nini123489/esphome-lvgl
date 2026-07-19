@@ -793,6 +793,25 @@ text_sensor:
                 id: light_sat_slider
                 value: !lambda 'return (int)roundf(id(light_pending_sat));'
 
+  # Light RGB color. Tints the slider knobs and the brightness fill in the
+  # lamp's current color (like the HA card). Tuple attribute -> text sensor;
+  # the knob/indicator parts have no declarative update action, so this uses
+  # raw LVGL style calls (widget ids resolve to lv_obj_t* in lambdas).
+  - platform: homeassistant
+    entity_id: light.h6022
+    attribute: rgb_color
+    id: light_main_rgb
+    on_value:
+      - lambda: |-
+          int r = 0, g = 0, b = 0;
+          if (sscanf(x.c_str(), "%*[^0-9]%d%*[^0-9]%d%*[^0-9]%d", &r, &g, &b) != 3) return;
+          lv_color_t c = lv_color_make((uint8_t) r, (uint8_t) g, (uint8_t) b);
+          lv_obj_set_style_bg_color(id(light_brightness_slider), c, LV_PART_INDICATOR);
+          lv_obj_set_style_bg_color(id(light_brightness_slider), c, LV_PART_KNOB);
+          lv_obj_set_style_bg_color(id(light_hue_slider), c, LV_PART_KNOB);
+          lv_obj_set_style_bg_color(id(light_sat_slider), c, LV_PART_KNOB);
+          lv_obj_set_style_bg_color(id(light_ct_slider), c, LV_PART_KNOB);
+
   - platform: homeassistant
     entity_id: sensor.3d_drucker_druckstatus
     id: printer_status_value
