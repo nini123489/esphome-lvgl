@@ -330,11 +330,11 @@ script:
             return v;
 
   # Debounced send: restarted on every local edit, so exactly one
-  # climate.set_temperature call goes out 5s after the last change.
+  # climate.set_temperature call goes out 2s after the last change.
   - id: heat_main_send_target
     mode: restart
     then:
-      - delay: 5s
+      - delay: 2s
       - homeassistant.service:
           service: climate.set_temperature
           data:
@@ -388,7 +388,7 @@ script:
   - id: heating_lab_send_target
     mode: restart
     then:
-      - delay: 5s
+      - delay: 2s
       - homeassistant.service:
           service: climate.set_temperature
           data:
@@ -418,7 +418,7 @@ script:
   - id: fan_main_send_pct
     mode: restart
     then:
-      - delay: 5s
+      - delay: 2s
       - homeassistant.service:
           service: fan.set_percentage
           data:
@@ -428,57 +428,67 @@ script:
           variables:
             pct: !lambda 'return (int)roundf(id(fan_main_pending_pct));'
 
-  # Resize the stack-card arcs to the space the notification row leaves over:
-  # big circles while the row is collapsed, compact ones while it is visible.
-  # Called from notif_render, which owns the row's hidden state.
+  # Resize the stack-card arcs to the space the notification row leaves over.
+  # The row is SIZE_CONTENT (one 46px line per notification), so there are
+  # four states: row collapsed 280px, empty placeholder 232px, one
+  # notification 212px, two notifications 160px. The top label rides at
+  # -(2/7) of the box size; the value font drops one size in the smallest
+  # state. Called from notif_render, which owns the row's hidden state.
   - id: stack_arc_resize
     then:
+      - lvgl.widget.update:
+          id: main_heat_arc_box
+          width: !lambda |-
+            if (id(notification_count) >= 2) return 160;
+            if (id(notification_count) == 1) return 212;
+            return id(collapse_notify).state ? 280 : 232;
+          height: !lambda |-
+            if (id(notification_count) >= 2) return 160;
+            if (id(notification_count) == 1) return 212;
+            return id(collapse_notify).state ? 280 : 232;
+      - lvgl.widget.update:
+          id: main_fan_arc_box
+          width: !lambda |-
+            if (id(notification_count) >= 2) return 160;
+            if (id(notification_count) == 1) return 212;
+            return id(collapse_notify).state ? 280 : 232;
+          height: !lambda |-
+            if (id(notification_count) >= 2) return 160;
+            if (id(notification_count) == 1) return 212;
+            return id(collapse_notify).state ? 280 : 232;
+      - lvgl.label.update:
+          id: main_heat_current_label
+          y: !lambda |-
+            int s;
+            if (id(notification_count) >= 2) s = 160;
+            else if (id(notification_count) == 1) s = 212;
+            else s = id(collapse_notify).state ? 280 : 232;
+            return -(s * 2) / 7;
+      - lvgl.label.update:
+          id: main_fan_mode_label
+          y: !lambda |-
+            int s;
+            if (id(notification_count) >= 2) s = 160;
+            else if (id(notification_count) == 1) s = 212;
+            else s = id(collapse_notify).state ? 280 : 232;
+            return -(s * 2) / 7;
       - if:
           condition:
-            # Mirrors the notif box hidden condition in notif_render.
-            lambda: 'return id(notification_count) == 0 && id(collapse_notify).state;'
+            lambda: 'return id(notification_count) >= 2;'
           then:
-            - lvgl.widget.update:
-                id: main_heat_arc_box
-                width: 280
-                height: 280
-            - lvgl.label.update:
-                id: main_heat_current_label
-                y: -80
             - lvgl.label.update:
                 id: main_heat_target_label
-                text_font: roboto44_font
-            - lvgl.widget.update:
-                id: main_fan_arc_box
-                width: 280
-                height: 280
-            - lvgl.label.update:
-                id: main_fan_mode_label
-                y: -80
+                text_font: roboto36_font
             - lvgl.label.update:
                 id: main_fan_speed_label
-                text_font: roboto44_font
+                text_font: roboto36_font
           else:
-            - lvgl.widget.update:
-                id: main_heat_arc_box
-                width: 176
-                height: 176
-            - lvgl.label.update:
-                id: main_heat_current_label
-                y: -52
             - lvgl.label.update:
                 id: main_heat_target_label
-                text_font: roboto36_font
-            - lvgl.widget.update:
-                id: main_fan_arc_box
-                width: 176
-                height: 176
-            - lvgl.label.update:
-                id: main_fan_mode_label
-                y: -52
+                text_font: roboto44_font
             - lvgl.label.update:
                 id: main_fan_speed_label
-                text_font: roboto36_font
+                text_font: roboto44_font
 
 interval:
   - interval: 30s
@@ -568,10 +578,12 @@ lvgl:
     # DASHBOARD — the overview page
     # =========================================================================
     # Vertical stack, top to bottom (heights sum to the 690px content box):
-    #   header 84 + status 40 + notifications 100 + stack flex + quick 96
-    #   with 4 x 10px row gaps.
-    # The stack card is the only flex_grow child, so when the notification row
-    # collapses (see notif_render) its height is donated to the stack card.
+    #   header 84 + status 44 + notifications SIZE_CONTENT + stack flex +
+    #   quick 96, with 10px row gaps.
+    # The stack card is the only flex_grow child, so whatever height the
+    # notification row gives up (fewer rows, or collapsed entirely — see
+    # notif_render) is donated to the stack card; stack_arc_resize rescales
+    # the dials accordingly.
     #
     # NOTE: theme/button.yaml gives every button 225x210 with 18px padding, so
     # every button below sets width/height/pad_all explicitly.
@@ -849,15 +861,18 @@ lvgl:
                         text_color: $text_tertiary
 
         # ---------------------------------------------------------------------
-        # NOTIFICATIONS — two passive rows, newest first.
+        # NOTIFICATIONS — up to two passive rows, newest first.
         # Fed by the api action "notify" (device.yaml) -> notif_push.
         # Tapping a row dismisses it. Collapses while empty when the HA switch
         # "Mitteilungen einklappen" (collapse_notify) is on.
+        # SIZE_CONTENT: the box grows one 46px row per notification (flex skips
+        # hidden children); the stack card absorbs the difference and
+        # stack_arc_resize rescales the dials to match.
         # ---------------------------------------------------------------------
         - obj:
             id: main_notif_box
             width: 100%
-            height: 100
+            height: SIZE_CONTENT
             bg_color: $status_bg_color
             bg_opa: cover
             radius: 22
@@ -1055,9 +1070,9 @@ lvgl:
                           # top, target in the center, -/+ inside the bottom
                           # gap of the ring (start 135 / end 45 leaves the
                           # bottom quadrant free). The box is resized by
-                          # stack_arc_resize when the notification row
-                          # collapses/expands; the defaults below are the
-                          # compact (row visible) geometry.
+                          # stack_arc_resize as the notification row grows and
+                          # shrinks; the defaults below are the boot geometry
+                          # (empty row visible, 232px).
                           - obj:
                               width: 100%
                               flex_grow: 1
@@ -1076,8 +1091,8 @@ lvgl:
                               widgets:
                                 - obj:
                                     id: main_heat_arc_box
-                                    width: 176
-                                    height: 176
+                                    width: 232
+                                    height: 232
                                     bg_opa: TRANSP
                                     border_width: 0
                                     pad_all: 0
@@ -1120,7 +1135,7 @@ lvgl:
                                       - label:
                                           id: main_heat_current_label
                                           align: center
-                                          y: -52
+                                          y: -66
                                           text: "Ist --.-°"
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
@@ -1129,7 +1144,7 @@ lvgl:
                                           align: center
                                           y: 2
                                           text: "--.-°"
-                                          text_font: roboto36_font
+                                          text_font: roboto44_font
                                           text_color: $text_primary
                                       - button:
                                           id: main_heat_down_button
@@ -1371,8 +1386,8 @@ lvgl:
                               widgets:
                                 - obj:
                                     id: main_fan_arc_box
-                                    width: 176
-                                    height: 176
+                                    width: 232
+                                    height: 232
                                     bg_opa: TRANSP
                                     border_width: 0
                                     pad_all: 0
@@ -1409,7 +1424,7 @@ lvgl:
                                       - label:
                                           id: main_fan_mode_label
                                           align: center
-                                          y: -52
+                                          y: -66
                                           text: "Direkt"
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
@@ -1418,7 +1433,7 @@ lvgl:
                                           align: center
                                           y: 2
                                           text: "--%"
-                                          text_font: roboto36_font
+                                          text_font: roboto44_font
                                           text_color: $text_primary
                                       - button:
                                           id: main_fan_power_button
