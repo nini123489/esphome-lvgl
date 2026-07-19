@@ -71,6 +71,34 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # Heating local-echo state (Übersicht card, climate.eve_thermo_20ebp1701).
+  # pending_target is the locally authoritative setpoint: buttons/arc read and
+  # write only this, the HA sensor merely seeds it while not editing.
+  - id: heat_main_pending_target
+    type: float
+    restore_value: false
+    initial_value: 'NAN'
+  - id: heat_main_editing
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: heat_main_hold_deadline
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  # Same trio for the heating detail page (climate.office_radiator_thermostat).
+  - id: heating_lab_pending_target
+    type: float
+    restore_value: false
+    initial_value: 'NAN'
+  - id: heating_lab_editing
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: heating_lab_hold_deadline
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 script:
   # Central page-navigation entry point. Takes a HA-facing label and routes to
@@ -268,6 +296,93 @@ script:
             id(notification_count) = write;
             id(notif_render).execute();
           }
+
+  # Push the locally pending target onto the Übersicht heating widgets.
+  # Single source of truth for the local echo, shared by -, + and the arc.
+  - id: heat_main_apply_local
+    then:
+      - lvgl.label.update:
+          id: main_heat_target_label
+          text:
+            format: "%.1f°"
+            args: [ 'id(heat_main_pending_target)' ]
+      - lvgl.arc.update:
+          id: main_heat_arc
+          value: !lambda |-
+            int v = (int)roundf(id(heat_main_pending_target) * 2.0f);
+            if (v < 20) v = 20;
+            if (v > 64) v = 64;
+            return v;
+
+  # Debounced send: restarted on every local edit, so exactly one
+  # climate.set_temperature call goes out 5s after the last change.
+  - id: heat_main_send_target
+    mode: restart
+    then:
+      - delay: 5s
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: climate.eve_thermo_20ebp1701
+            hvac_mode: heat
+          data_template:
+            temperature: "{{ temp }}"
+          variables:
+            temp: !lambda 'return id(heat_main_pending_target);'
+
+  # Same local echo for the heating detail page. Drives the whole gauge
+  # (label + track/dot/delta/mask arcs) so it stays consistent while editing.
+  - id: heating_lab_apply_local
+    then:
+      - lvgl.label.update:
+          id: heating_lab_target_label
+          text:
+            format: "%.1f°C"
+            args: [ 'id(heating_lab_pending_target)' ]
+      - lvgl.arc.update:
+          id: heating_track_arc
+          value: !lambda return (int)roundf(id(heating_lab_pending_target) * 2.0f);
+      - lvgl.arc.update:
+          id: heating_target_dot_arc
+          value: !lambda return (int)roundf(id(heating_lab_pending_target) * 2.0f);
+      - lvgl.arc.update:
+          id: heating_delta_arc
+          value: !lambda |-
+            float tgt = id(heating_lab_pending_target);
+            float cur = tgt;
+            if (id(heating_current_temperature).has_state() &&
+                !isnan(id(heating_current_temperature).state)) {
+              cur = id(heating_current_temperature).state;
+            }
+            int cur_v = (int)roundf(cur * 2.0f);
+            int tgt_v = (int)roundf(tgt * 2.0f);
+            return cur_v > tgt_v ? cur_v : tgt_v;
+      - lvgl.arc.update:
+          id: heating_mask_arc
+          value: !lambda |-
+            float tgt = id(heating_lab_pending_target);
+            float cur = tgt;
+            if (id(heating_current_temperature).has_state() &&
+                !isnan(id(heating_current_temperature).state)) {
+              cur = id(heating_current_temperature).state;
+            }
+            int cur_v = (int)roundf(cur * 2.0f);
+            int tgt_v = (int)roundf(tgt * 2.0f);
+            return cur_v < tgt_v ? cur_v : tgt_v;
+
+  - id: heating_lab_send_target
+    mode: restart
+    then:
+      - delay: 5s
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: climate.office_radiator_thermostat
+            hvac_mode: heat
+          data_template:
+            temperature: "{{ temp }}"
+          variables:
+            temp: !lambda 'return id(heating_lab_pending_target);'
 
 interval:
   - interval: 30s
@@ -873,19 +988,21 @@ lvgl:
                                           text_font: roboto28_font
                                           text_color: $text_primary
                                     on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_temperature
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: heat
-                                          data_template:
-                                            temperature: "{{ temp }}"
-                                          variables:
-                                            temp: !lambda |-
-                                              if (id(heating_main_target_temp).has_state()) {
-                                                return id(heating_main_target_temp).state - 0.5f;
-                                              }
-                                              return 20.0f;
+                                      - lambda: |-
+                                          float base = id(heat_main_pending_target);
+                                          if (isnan(base)) {
+                                            base = (id(heating_main_target_temp).has_state() &&
+                                                    !isnan(id(heating_main_target_temp).state))
+                                                   ? id(heating_main_target_temp).state : 20.0f;
+                                          }
+                                          float v = base - 0.5f;
+                                          if (v < 10.0f) v = 10.0f;
+                                          if (v > 32.0f) v = 32.0f;
+                                          id(heat_main_pending_target) = v;
+                                          id(heat_main_editing) = true;
+                                          id(heat_main_hold_deadline) = millis() + 15000;
+                                      - script.execute: heat_main_apply_local
+                                      - script.execute: heat_main_send_target
 
                                 # Arc plus its centred labels. An arc takes no
                                 # child widgets, so both live in this wrapper
@@ -925,15 +1042,12 @@ lvgl:
                                           # update calls) sends no event, so
                                           # this cannot feed back on itself.
                                           on_value:
-                                            - homeassistant.service:
-                                                service: climate.set_temperature
-                                                data:
-                                                  entity_id: climate.eve_thermo_20ebp1701
-                                                  hvac_mode: heat
-                                                data_template:
-                                                  temperature: "{{ temp }}"
-                                                variables:
-                                                  temp: !lambda 'return (float) x / 2.0f;'
+                                            - lambda: |-
+                                                id(heat_main_pending_target) = (float) x / 2.0f;
+                                                id(heat_main_editing) = true;
+                                                id(heat_main_hold_deadline) = millis() + 15000;
+                                            - script.execute: heat_main_apply_local
+                                            - script.execute: heat_main_send_target
                                       - label:
                                           id: main_heat_target_label
                                           align: center
@@ -965,19 +1079,21 @@ lvgl:
                                           text_font: roboto28_font
                                           text_color: $text_primary
                                     on_click:
-                                      - homeassistant.service:
-                                          service: climate.set_temperature
-                                          data:
-                                            entity_id: climate.eve_thermo_20ebp1701
-                                            hvac_mode: heat
-                                          data_template:
-                                            temperature: "{{ temp }}"
-                                          variables:
-                                            temp: !lambda |-
-                                              if (id(heating_main_target_temp).has_state()) {
-                                                return id(heating_main_target_temp).state + 0.5f;
-                                              }
-                                              return 20.0f;
+                                      - lambda: |-
+                                          float base = id(heat_main_pending_target);
+                                          if (isnan(base)) {
+                                            base = (id(heating_main_target_temp).has_state() &&
+                                                    !isnan(id(heating_main_target_temp).state))
+                                                   ? id(heating_main_target_temp).state : 20.0f;
+                                          }
+                                          float v = base + 0.5f;
+                                          if (v < 10.0f) v = 10.0f;
+                                          if (v > 32.0f) v = 32.0f;
+                                          id(heat_main_pending_target) = v;
+                                          id(heat_main_editing) = true;
+                                          id(heat_main_hold_deadline) = millis() + 15000;
+                                      - script.execute: heat_main_apply_local
+                                      - script.execute: heat_main_send_target
 
                           # Power toggle, full width
                           - button:
@@ -2950,12 +3066,12 @@ lvgl:
                   clickable: true
                   adjustable: true
                   on_value:
-                    - homeassistant.service:
-                        service: climate.set_temperature
-                        data:
-                          entity_id: climate.office_radiator_thermostat
-                          hvac_mode: heat
-                          temperature: !lambda return (float)x / 2.0f;
+                    - lambda: |-
+                        id(heating_lab_pending_target) = (float) x / 2.0f;
+                        id(heating_lab_editing) = true;
+                        id(heating_lab_hold_deadline) = millis() + 15000;
+                    - script.execute: heating_lab_apply_local
+                    - script.execute: heating_lab_send_target
 
               # Mode label
               - label:
@@ -3024,16 +3140,21 @@ lvgl:
                         align: center
                         text_color: $text_tertiary
                   on_click:
-                    - homeassistant.service:
-                        service: climate.set_temperature
-                        data:
-                          entity_id: climate.office_radiator_thermostat
-                          hvac_mode: heat
-                          temperature: !lambda |-
-                            if (id(heating_target_temperature).has_state()) {
-                              return id(heating_target_temperature).state - 0.5f;
-                            }
-                            return 0.0f;
+                    - lambda: |-
+                        float base = id(heating_lab_pending_target);
+                        if (isnan(base)) {
+                          base = (id(heating_target_temperature).has_state() &&
+                                  !isnan(id(heating_target_temperature).state))
+                                 ? id(heating_target_temperature).state : 20.0f;
+                        }
+                        float v = base - 0.5f;
+                        if (v < 10.0f) v = 10.0f;
+                        if (v > 32.0f) v = 32.0f;
+                        id(heating_lab_pending_target) = v;
+                        id(heating_lab_editing) = true;
+                        id(heating_lab_hold_deadline) = millis() + 15000;
+                    - script.execute: heating_lab_apply_local
+                    - script.execute: heating_lab_send_target
 
               # Up button (+0.5C)
               - button:
@@ -3054,16 +3175,21 @@ lvgl:
                         align: center
                         text_color: $text_tertiary
                   on_click:
-                    - homeassistant.service:
-                        service: climate.set_temperature
-                        data:
-                          entity_id: climate.office_radiator_thermostat
-                          hvac_mode: heat
-                          temperature: !lambda |-
-                            if (id(heating_target_temperature).has_state()) {
-                              return id(heating_target_temperature).state + 0.5f;
-                            }
-                            return 0.0f;
+                    - lambda: |-
+                        float base = id(heating_lab_pending_target);
+                        if (isnan(base)) {
+                          base = (id(heating_target_temperature).has_state() &&
+                                  !isnan(id(heating_target_temperature).state))
+                                 ? id(heating_target_temperature).state : 20.0f;
+                        }
+                        float v = base + 0.5f;
+                        if (v < 10.0f) v = 10.0f;
+                        if (v > 32.0f) v = 32.0f;
+                        id(heating_lab_pending_target) = v;
+                        id(heating_lab_editing) = true;
+                        id(heating_lab_hold_deadline) = millis() + 15000;
+                    - script.execute: heating_lab_apply_local
+                    - script.execute: heating_lab_send_target
 
     - id: printer_lab_page
       layout:

@@ -112,12 +112,16 @@ sensor:
       - lvgl.arc.update:
           id: heating_current_arc
           value: !lambda return (int)roundf(x * 2.0f);
+      # While the display is editing the setpoint, prefer the local pending
+      # target so these arcs don't repaint from the stale HA value mid-edit.
       - lvgl.arc.update:
           id: heating_delta_arc
           value: !lambda |-
             float cur = x;
             float tgt = cur;
-            if (id(heating_target_temperature).has_state()) {
+            if (id(heating_lab_editing) && !isnan(id(heating_lab_pending_target))) {
+              tgt = id(heating_lab_pending_target);
+            } else if (id(heating_target_temperature).has_state()) {
               tgt = id(heating_target_temperature).state;
             }
             int cur_v = (int)roundf(cur * 2.0f);
@@ -128,7 +132,9 @@ sensor:
           value: !lambda |-
             float cur = x;
             float tgt = cur;
-            if (id(heating_target_temperature).has_state()) {
+            if (id(heating_lab_editing) && !isnan(id(heating_lab_pending_target))) {
+              tgt = id(heating_lab_pending_target);
+            } else if (id(heating_target_temperature).has_state()) {
               tgt = id(heating_target_temperature).state;
             }
             int cur_v = (int)roundf(cur * 2.0f);
@@ -153,47 +159,60 @@ sensor:
     id: heating_target_temperature
     attribute: temperature
     on_value:
-      - lvgl.label.update:
-          id: heating_lab_target_label
-          text:
-            format: "%.1f°C"
-            args: [ 'x' ]
-      - lvgl.arc.update:
-          id: heating_track_arc
-          value: !lambda return (int)roundf(x * 2.0f);
-      - lvgl.arc.update:
-          id: heating_target_dot_arc
-          value: !lambda return (int)roundf(x * 2.0f);
-      - lvgl.arc.update:
-          id: heating_delta_arc
-          value: !lambda |-
-            float tgt = x;
-            float cur = tgt;
-            if (id(heating_current_temperature).has_state()) {
-              cur = id(heating_current_temperature).state;
-            }
-            int cur_v = (int)roundf(cur * 2.0f);
-            int tgt_v = (int)roundf(tgt * 2.0f);
-            return cur_v > tgt_v ? cur_v : tgt_v;
-      - lvgl.arc.update:
-          id: heating_mask_arc
-          value: !lambda |-
-            float tgt = x;
-            float cur = tgt;
-            if (id(heating_current_temperature).has_state()) {
-              cur = id(heating_current_temperature).state;
-            }
-            int cur_v = (int)roundf(cur * 2.0f);
-            int tgt_v = (int)roundf(tgt * 2.0f);
-            return cur_v < tgt_v ? cur_v : tgt_v;
+      # Local-echo guard, same mechanism as heating_main_target_temp below.
+      - lambda: |-
+          if (id(heating_lab_editing)) {
+            bool caught_up = !isnan(id(heating_lab_pending_target)) &&
+                             fabsf(x - id(heating_lab_pending_target)) < 0.25f;
+            bool timed_out = (int32_t)(millis() - id(heating_lab_hold_deadline)) >= 0;
+            if (caught_up || timed_out) id(heating_lab_editing) = false;
+          }
+          if (!id(heating_lab_editing)) id(heating_lab_pending_target) = x;
+      - if:
+          condition:
+            lambda: 'return !id(heating_lab_editing);'
+          then:
+            - lvgl.label.update:
+                id: heating_lab_target_label
+                text:
+                  format: "%.1f°C"
+                  args: [ 'x' ]
+            - lvgl.arc.update:
+                id: heating_track_arc
+                value: !lambda return (int)roundf(x * 2.0f);
+            - lvgl.arc.update:
+                id: heating_target_dot_arc
+                value: !lambda return (int)roundf(x * 2.0f);
+            - lvgl.arc.update:
+                id: heating_delta_arc
+                value: !lambda |-
+                  float tgt = x;
+                  float cur = tgt;
+                  if (id(heating_current_temperature).has_state()) {
+                    cur = id(heating_current_temperature).state;
+                  }
+                  int cur_v = (int)roundf(cur * 2.0f);
+                  int tgt_v = (int)roundf(tgt * 2.0f);
+                  return cur_v > tgt_v ? cur_v : tgt_v;
+            - lvgl.arc.update:
+                id: heating_mask_arc
+                value: !lambda |-
+                  float tgt = x;
+                  float cur = tgt;
+                  if (id(heating_current_temperature).has_state()) {
+                    cur = id(heating_current_temperature).state;
+                  }
+                  int cur_v = (int)roundf(cur * 2.0f);
+                  int tgt_v = (int)roundf(tgt * 2.0f);
+                  return cur_v < tgt_v ? cur_v : tgt_v;
 
   # ===========================================================================
   # HEATING (main_page Eve thermostat card)
   # ===========================================================================
-  # Feeds the Heizung tab of the dashboard stack widget. The target sensor's
-  # state is also read by the -/+ button on_click lambdas to compute the new
-  # setpoint. The progress bar works in tenths of a degree (150..250) because
-  # LVGL bars are integer-valued.
+  # Feeds the Heizung tab of the dashboard stack widget. The target sensor
+  # seeds heat_main_pending_target (lvgl.yaml globals), which the -/+ buttons
+  # and arc edit locally before the debounced send. The progress bar works in
+  # tenths of a degree (150..250) because LVGL bars are integer-valued.
   - platform: homeassistant
     entity_id: climate.eve_thermo_20ebp1701
     id: heating_main_current_temp
@@ -210,19 +229,35 @@ sensor:
     id: heating_main_target_temp
     attribute: temperature
     on_value:
-      - lvgl.label.update:
-          id: main_heat_target_label
-          text:
-            format: "%.1f°"
-            args: [ 'x' ]
-      # Arc scale is degrees x2 (20..64 = 10..32 degC), clamped.
-      - lvgl.arc.update:
-          id: main_heat_arc
-          value: !lambda |-
-            int v = (int)roundf(x * 2.0f);
-            if (v < 20) v = 20;
-            if (v > 64) v = 64;
-            return v;
+      # Local-echo guard: while the display is editing the setpoint, HA state
+      # must not overwrite the widgets. Editing ends once HA echoes the pending
+      # value (|x - pending| < 0.25, safely below the 0.5 step) or the 15s
+      # deadline passes (rollover-safe millis compare).
+      - lambda: |-
+          if (id(heat_main_editing)) {
+            bool caught_up = !isnan(id(heat_main_pending_target)) &&
+                             fabsf(x - id(heat_main_pending_target)) < 0.25f;
+            bool timed_out = (int32_t)(millis() - id(heat_main_hold_deadline)) >= 0;
+            if (caught_up || timed_out) id(heat_main_editing) = false;
+          }
+          if (!id(heat_main_editing)) id(heat_main_pending_target) = x;
+      - if:
+          condition:
+            lambda: 'return !id(heat_main_editing);'
+          then:
+            - lvgl.label.update:
+                id: main_heat_target_label
+                text:
+                  format: "%.1f°"
+                  args: [ 'x' ]
+            # Arc scale is degrees x2 (20..64 = 10..32 degC), clamped.
+            - lvgl.arc.update:
+                id: main_heat_arc
+                value: !lambda |-
+                  int v = (int)roundf(x * 2.0f);
+                  if (v < 20) v = 20;
+                  if (v > 64) v = 64;
+                  return v;
 
   # ===========================================================================
   # FAN — speed + sleep timer (Ventilator tab)
