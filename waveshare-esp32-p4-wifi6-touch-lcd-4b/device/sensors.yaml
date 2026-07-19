@@ -260,25 +260,36 @@ sensor:
   # ===========================================================================
   # FAN — speed + sleep timer (Ventilator tab)
   # ===========================================================================
-  # The slider is kept in sync from here, so a change made in HA or on the
-  # fan itself is reflected on screen.
+  # The speed arc is kept in sync from here, so a change made in HA or on the
+  # fan itself is reflected on screen. Local-echo guard like the heating arcs:
+  # while the display is editing, the local value stays authoritative for 15s.
   - platform: homeassistant
     entity_id: fan.dmaker_de_454884949_p33_s_2_fan
     attribute: percentage
     id: fan_main_percentage
     on_value:
-      - lvgl.label.update:
-          id: main_fan_speed_label
-          text:
-            format: "%.0f%%"
-            args: [ 'x' ]
-      - lvgl.slider.update:
-          id: main_fan_speed_slider
-          value: !lambda |-
-            int v = (int)roundf(x);
-            if (v < 1) v = 1;
-            if (v > 100) v = 100;
-            return v;
+      - lambda: |-
+          if (id(fan_main_editing) &&
+              (int32_t)(millis() - id(fan_main_hold_deadline)) >= 0) {
+            id(fan_main_editing) = false;
+          }
+          if (!id(fan_main_editing)) id(fan_main_pending_pct) = x;
+      - if:
+          condition:
+            lambda: 'return !id(fan_main_editing);'
+          then:
+            - lvgl.label.update:
+                id: main_fan_speed_label
+                text:
+                  format: "%.0f%%"
+                  args: [ 'x' ]
+            - lvgl.arc.update:
+                id: main_fan_arc
+                value: !lambda |-
+                  int v = (int)roundf(x);
+                  if (v < 1) v = 1;
+                  if (v > 100) v = 100;
+                  return v;
 
   # Off-delay in minutes (0..480). 0 means "no timer running".
   - platform: homeassistant
@@ -663,17 +674,30 @@ text_sensor:
                                            : std::string("Ausgeschaltet");
 
   # Fan preset. The entity spells its modes "Direkte brise" / "Natürliche brise"
-  # (lowercase b); the chip shows a shortened label and cycles between the two.
+  # (lowercase b). Drives the label above the speed arc and the mode toggle
+  # icon inside it (leaf = natural breeze, fan = direct).
   - platform: homeassistant
     entity_id: fan.dmaker_de_454884949_p33_s_2_fan
     attribute: preset_mode
     id: fan_main_preset
     on_value:
-      - lvgl.label.update:
-          id: main_fan_preset_label
-          text: !lambda |-
-            if (x == "Natürliche brise") return std::string("Natürlich");
-            return std::string("Direkt");
+      - if:
+          condition:
+            lambda: 'return x == "Natürliche brise";'
+          then:
+            - lvgl.label.update:
+                id: main_fan_mode_label
+                text: "Natürlich"
+            - lvgl.label.update:
+                id: main_fan_mode_icon
+                text: "$leaf"
+          else:
+            - lvgl.label.update:
+                id: main_fan_mode_label
+                text: "Direkt"
+            - lvgl.label.update:
+                id: main_fan_mode_icon
+                text: "$fan"
 
   - platform: homeassistant
     entity_id: sensor.3d_drucker_druckstatus
@@ -755,12 +779,9 @@ binary_sensor:
     on_state:
       then:
         - lvgl.widget.update:
-            id: main_fan_state_chip
+            id: main_fan_power_button
             state:
               checked: !lambda return x;
-        - lvgl.label.update:
-            id: main_fan_state_label
-            text: !lambda 'return x ? std::string("an") : std::string("aus");'
 
   - platform: homeassistant
     id: fan_main_oscillating

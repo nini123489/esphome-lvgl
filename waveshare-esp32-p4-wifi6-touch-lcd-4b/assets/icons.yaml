@@ -74,6 +74,7 @@ font:
       "\U000F01D8",  # mdi-dots-horizontal
       "\U000F0599",  # mdi-weather-sunny (status line, outdoor temp)
       "\U000F0238",  # mdi-fire (heating card title)
+      "\U000F032A",  # mdi-leaf (fan natural-breeze mode)
       ]
 
 # Map icons to names
@@ -131,3 +132,4 @@ substitutions:
   house_power:        "\U000F1903"
   dots_horizontal:    "\U000F01D8"
   fire:               "\U000F0238"
+  leaf:               "\U000F032A"

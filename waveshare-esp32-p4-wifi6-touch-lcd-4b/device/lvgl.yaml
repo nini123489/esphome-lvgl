@@ -99,6 +99,19 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # Same trio for the fan speed arc (fan.dmaker_de_454884949_p33_s_2_fan).
+  - id: fan_main_pending_pct
+    type: float
+    restore_value: false
+    initial_value: 'NAN'
+  - id: fan_main_editing
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: fan_main_hold_deadline
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 script:
   # Central page-navigation entry point. Takes a HA-facing label and routes to
@@ -259,6 +272,8 @@ script:
       - lvgl.widget.update:
           id: main_notif_box
           hidden: !lambda 'return id(notification_count) == 0 && id(collapse_notify).state;'
+      # The stack-card arcs grow into the freed height (and shrink back).
+      - script.execute: stack_arc_resize
 
   # Periodic check: drop slots whose expire timestamp has passed.
   # In-place two-pointer compaction over text + time + expire arrays.
@@ -383,6 +398,87 @@ script:
             temperature: "{{ temp }}"
           variables:
             temp: !lambda 'return id(heating_lab_pending_target);'
+
+  # Fan speed local echo + debounced send, same mechanism as the heating arc.
+  - id: fan_main_apply_local
+    then:
+      - lvgl.label.update:
+          id: main_fan_speed_label
+          text:
+            format: "%.0f%%"
+            args: [ 'id(fan_main_pending_pct)' ]
+      - lvgl.arc.update:
+          id: main_fan_arc
+          value: !lambda |-
+            int v = (int)roundf(id(fan_main_pending_pct));
+            if (v < 1) v = 1;
+            if (v > 100) v = 100;
+            return v;
+
+  - id: fan_main_send_pct
+    mode: restart
+    then:
+      - delay: 5s
+      - homeassistant.service:
+          service: fan.set_percentage
+          data:
+            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+          data_template:
+            percentage: "{{ pct }}"
+          variables:
+            pct: !lambda 'return (int)roundf(id(fan_main_pending_pct));'
+
+  # Resize the stack-card arcs to the space the notification row leaves over:
+  # big circles while the row is collapsed, compact ones while it is visible.
+  # Called from notif_render, which owns the row's hidden state.
+  - id: stack_arc_resize
+    then:
+      - if:
+          condition:
+            # Mirrors the notif box hidden condition in notif_render.
+            lambda: 'return id(notification_count) == 0 && id(collapse_notify).state;'
+          then:
+            - lvgl.widget.update:
+                id: main_heat_arc_box
+                width: 280
+                height: 280
+            - lvgl.label.update:
+                id: main_heat_current_label
+                y: -80
+            - lvgl.label.update:
+                id: main_heat_target_label
+                text_font: roboto44_font
+            - lvgl.widget.update:
+                id: main_fan_arc_box
+                width: 280
+                height: 280
+            - lvgl.label.update:
+                id: main_fan_mode_label
+                y: -80
+            - lvgl.label.update:
+                id: main_fan_speed_label
+                text_font: roboto44_font
+          else:
+            - lvgl.widget.update:
+                id: main_heat_arc_box
+                width: 176
+                height: 176
+            - lvgl.label.update:
+                id: main_heat_current_label
+                y: -52
+            - lvgl.label.update:
+                id: main_heat_target_label
+                text_font: roboto36_font
+            - lvgl.widget.update:
+                id: main_fan_arc_box
+                width: 176
+                height: 176
+            - lvgl.label.update:
+                id: main_fan_mode_label
+                y: -52
+            - lvgl.label.update:
+                id: main_fan_speed_label
+                text_font: roboto36_font
 
 interval:
   - interval: 30s
@@ -955,7 +1051,13 @@ lvgl:
                                     text_font: roboto17_font
                                     text_color: $text_primary
 
-                          # -  [ arc ]  +
+                          # Big dial: arc filling the middle, current temp on
+                          # top, target in the center, -/+ inside the bottom
+                          # gap of the ring (start 135 / end 45 leaves the
+                          # bottom quadrant free). The box is resized by
+                          # stack_arc_resize when the notification row
+                          # collapses/expands; the defaults below are the
+                          # compact (row visible) geometry.
                           - obj:
                               width: 100%
                               flex_grow: 1
@@ -968,49 +1070,14 @@ lvgl:
                               layout:
                                 type: flex
                                 flex_flow: row
-                                flex_align_main: space_evenly
+                                flex_align_main: center
                                 flex_align_cross: center
                                 flex_align_track: center
                               widgets:
-                                - button:
-                                    id: main_heat_down_button
-                                    width: 76
-                                    height: 76
-                                    pad_all: 0
-                                    radius: 38
-                                    bg_color: $control_inner_color
-                                    border_width: 1
-                                    border_color: $border_circle
-                                    widgets:
-                                      - label:
-                                          align: center
-                                          text: "-"
-                                          text_font: roboto28_font
-                                          text_color: $text_primary
-                                    on_click:
-                                      - lambda: |-
-                                          float base = id(heat_main_pending_target);
-                                          if (isnan(base)) {
-                                            base = (id(heating_main_target_temp).has_state() &&
-                                                    !isnan(id(heating_main_target_temp).state))
-                                                   ? id(heating_main_target_temp).state : 20.0f;
-                                          }
-                                          float v = base - 0.5f;
-                                          if (v < 10.0f) v = 10.0f;
-                                          if (v > 30.0f) v = 30.0f;
-                                          id(heat_main_pending_target) = v;
-                                          id(heat_main_editing) = true;
-                                          id(heat_main_hold_deadline) = millis() + 15000;
-                                      - script.execute: heat_main_apply_local
-                                      - script.execute: heat_main_send_target
-
-                                # Arc plus its centred labels. An arc takes no
-                                # child widgets, so both live in this wrapper
-                                # and are aligned over the top of it.
                                 - obj:
                                     id: main_heat_arc_box
-                                    width: 170
-                                    height: 170
+                                    width: 176
+                                    height: 176
                                     bg_opa: TRANSP
                                     border_width: 0
                                     pad_all: 0
@@ -1051,51 +1118,87 @@ lvgl:
                                             - script.execute: heat_main_apply_local
                                             - script.execute: heat_main_send_target
                                       - label:
-                                          id: main_heat_target_label
-                                          align: center
-                                          y: -12
-                                          text: "--.-°"
-                                          text_font: roboto36_font
-                                          text_color: $text_primary
-                                      - label:
                                           id: main_heat_current_label
                                           align: center
-                                          y: 26
+                                          y: -52
                                           text: "Ist --.-°"
                                           text_font: roboto15_font
                                           text_color: $text_tertiary
-
-                                - button:
-                                    id: main_heat_up_button
-                                    width: 76
-                                    height: 76
-                                    pad_all: 0
-                                    radius: 38
-                                    bg_color: $control_inner_color
-                                    border_width: 1
-                                    border_color: $border_circle
-                                    widgets:
                                       - label:
+                                          id: main_heat_target_label
                                           align: center
-                                          text: "+"
-                                          text_font: roboto28_font
+                                          y: 2
+                                          text: "--.-°"
+                                          text_font: roboto36_font
                                           text_color: $text_primary
-                                    on_click:
-                                      - lambda: |-
-                                          float base = id(heat_main_pending_target);
-                                          if (isnan(base)) {
-                                            base = (id(heating_main_target_temp).has_state() &&
-                                                    !isnan(id(heating_main_target_temp).state))
-                                                   ? id(heating_main_target_temp).state : 20.0f;
-                                          }
-                                          float v = base + 0.5f;
-                                          if (v < 10.0f) v = 10.0f;
-                                          if (v > 30.0f) v = 30.0f;
-                                          id(heat_main_pending_target) = v;
-                                          id(heat_main_editing) = true;
-                                          id(heat_main_hold_deadline) = millis() + 15000;
-                                      - script.execute: heat_main_apply_local
-                                      - script.execute: heat_main_send_target
+                                      - button:
+                                          id: main_heat_down_button
+                                          align: bottom_mid
+                                          x: -38
+                                          y: -2
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "-"
+                                                text_font: roboto28_font
+                                                text_color: $text_primary
+                                          on_click:
+                                            - lambda: |-
+                                                float base = id(heat_main_pending_target);
+                                                if (isnan(base)) {
+                                                  base = (id(heating_main_target_temp).has_state() &&
+                                                          !isnan(id(heating_main_target_temp).state))
+                                                         ? id(heating_main_target_temp).state : 20.0f;
+                                                }
+                                                float v = base - 0.5f;
+                                                if (v < 10.0f) v = 10.0f;
+                                                if (v > 30.0f) v = 30.0f;
+                                                id(heat_main_pending_target) = v;
+                                                id(heat_main_editing) = true;
+                                                id(heat_main_hold_deadline) = millis() + 15000;
+                                            - script.execute: heat_main_apply_local
+                                            - script.execute: heat_main_send_target
+                                      - button:
+                                          id: main_heat_up_button
+                                          align: bottom_mid
+                                          x: 38
+                                          y: -2
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "+"
+                                                text_font: roboto28_font
+                                                text_color: $text_primary
+                                          on_click:
+                                            - lambda: |-
+                                                float base = id(heat_main_pending_target);
+                                                if (isnan(base)) {
+                                                  base = (id(heating_main_target_temp).has_state() &&
+                                                          !isnan(id(heating_main_target_temp).state))
+                                                         ? id(heating_main_target_temp).state : 20.0f;
+                                                }
+                                                float v = base + 0.5f;
+                                                if (v < 10.0f) v = 10.0f;
+                                                if (v > 30.0f) v = 30.0f;
+                                                id(heat_main_pending_target) = v;
+                                                id(heat_main_editing) = true;
+                                                id(heat_main_hold_deadline) = millis() + 15000;
+                                            - script.execute: heat_main_apply_local
+                                            - script.execute: heat_main_send_target
 
                           # Power toggle, full width
                           - button:
@@ -1169,7 +1272,9 @@ lvgl:
                           type: flex
                           flex_flow: column
                           flex_align_main: space_between
-                          pad_row: 14
+                          # Same row gap as the heating tab so both dials get
+                          # identical vertical space.
+                          pad_row: 10
                         widgets:
 
                           # Title + on/off chip
@@ -1211,138 +1316,26 @@ lvgl:
                                           text: "Ventilator"
                                           text_font: roboto17_font
                                           text_color: $text_primary
+                                # Oscillation chip (moved up from the old chip
+                                # row; the sensor fan_main_oscillating drives
+                                # the checked state).
                                 - button:
-                                    id: main_fan_state_chip
+                                    id: main_fan_osc_chip
                                     width: 76
                                     height: 34
                                     pad_all: 0
                                     radius: 17
-                                    bg_color: $control_inner_color
-                                    checkable: true
-                                    widgets:
-                                      - label:
-                                          id: main_fan_state_label
-                                          align: center
-                                          text: "aus"
-                                          text_font: roboto15_font
-                                    on_click:
-                                      - homeassistant.service:
-                                          service: fan.toggle
-                                          data:
-                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
-
-                          # Speed — label row + slider.
-                          # on_release, not on_value: dragging would otherwise
-                          # fire one service call per intermediate step.
-                          - obj:
-                              width: 100%
-                              height: 56
-                              bg_opa: TRANSP
-                              border_width: 0
-                              pad_all: 0
-                              scrollbar_mode: "off"
-                              clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: column
-                                pad_row: 8
-                              widgets:
-                                - obj:
-                                    width: 100%
-                                    height: 26
-                                    bg_opa: TRANSP
-                                    border_width: 0
-                                    pad_all: 0
-                                    scrollbar_mode: "off"
-                                    clickable: false
-                                    layout:
-                                      type: flex
-                                      flex_flow: row
-                                      flex_align_main: space_between
-                                      flex_align_cross: center
-                                      flex_align_track: center
-                                    widgets:
-                                      - label:
-                                          text: "Geschwindigkeit"
-                                          text_font: roboto15_font
-                                          text_color: $text_tertiary
-                                      - label:
-                                          id: main_fan_speed_label
-                                          text: "--%"
-                                          text_font: roboto17_font
-                                          text_color: $text_primary
-                                - slider:
-                                    id: main_fan_speed_slider
-                                    width: 100%
-                                    height: 22
-                                    min_value: 1
-                                    max_value: 100
-                                    value: 1
-                                    bg_color: $slider_background_color
-                                    indicator:
-                                      bg_color: $accent_blue
-                                    knob:
-                                      bg_color: $slider_knob_color
-                                    on_release:
-                                      - homeassistant.service:
-                                          service: fan.set_percentage
-                                          data:
-                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
-                                          data_template:
-                                            percentage: "{{ pct }}"
-                                          variables:
-                                            pct: !lambda 'return (int) x;'
-
-                          # Oscillation + preset chips
-                          - obj:
-                              width: 100%
-                              height: 48
-                              bg_opa: TRANSP
-                              border_width: 0
-                              pad_all: 0
-                              scrollbar_mode: "off"
-                              clickable: false
-                              layout:
-                                type: flex
-                                flex_flow: row
-                                pad_column: 12
-                              widgets:
-                                - button:
-                                    id: main_fan_osc_chip
-                                    flex_grow: 1
-                                    height: 48
-                                    pad_all: 0
-                                    radius: 24
                                     bg_color: $control_inner_color
                                     checked:
                                       bg_color: $tint_blue
                                       text_color: $accent_blue
                                     checkable: true
                                     widgets:
-                                      - obj:
+                                      - label:
                                           align: center
-                                          width: SIZE_CONTENT
-                                          height: SIZE_CONTENT
-                                          bg_opa: TRANSP
-                                          border_width: 0
-                                          pad_all: 0
-                                          scrollbar_mode: "off"
-                                          clickable: false
-                                          layout:
-                                            type: flex
-                                            flex_flow: row
-                                            flex_align_cross: center
-                                            flex_align_track: center
-                                            pad_column: 8
-                                          widgets:
-                                            - label:
-                                                text_font: icon_font_small
-                                                text_color: $text_primary
-                                                text: $swap_horizontal
-                                            - label:
-                                                text: "Schwenken"
-                                                text_font: roboto15_font
-                                                text_color: $text_primary
+                                          text_font: icon_font_small
+                                          text_color: $text_primary
+                                          text: $swap_horizontal
                                     on_click:
                                       - homeassistant.service:
                                           service: fan.oscillate
@@ -1354,42 +1347,152 @@ lvgl:
                                             osc: !lambda |-
                                               return id(fan_main_oscillating).state ? std::string("false")
                                                                                     : std::string("true");
-                                # Cycles the two presets the entity offers.
-                                # Spelling must match HA byte for byte.
-                                - button:
-                                    id: main_fan_preset_chip
-                                    flex_grow: 1
-                                    height: 48
+
+                          # Big dial: speed arc filling the middle, preset name
+                          # on top, percentage in the center, power + mode
+                          # toggle inside the bottom gap of the ring. Same
+                          # local-echo/debounce pipeline as the heating arc;
+                          # resized by stack_arc_resize like the heating box.
+                          - obj:
+                              width: 100%
+                              flex_grow: 1
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              scrollable: false
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: center
+                                flex_align_cross: center
+                                flex_align_track: center
+                              widgets:
+                                - obj:
+                                    id: main_fan_arc_box
+                                    width: 176
+                                    height: 176
+                                    bg_opa: TRANSP
+                                    border_width: 0
                                     pad_all: 0
-                                    radius: 24
-                                    bg_color: $control_inner_color
+                                    scrollbar_mode: "off"
+                                    scrollable: false
+                                    clickable: false
                                     widgets:
-                                      - label:
-                                          id: main_fan_preset_label
+                                      - arc:
+                                          id: main_fan_arc
                                           align: center
+                                          width: 100%
+                                          height: 100%
+                                          min_value: 1
+                                          max_value: 100
+                                          value: 1
+                                          start_angle: 135
+                                          end_angle: 45
+                                          arc_width: 14
+                                          arc_color: $control_inner_color
+                                          adjustable: true
+                                          clickable: true
+                                          indicator:
+                                            arc_color: $accent_blue
+                                            arc_width: 14
+                                          knob:
+                                            bg_color: $accent_blue
+                                          on_value:
+                                            - lambda: |-
+                                                id(fan_main_pending_pct) = (float) x;
+                                                id(fan_main_editing) = true;
+                                                id(fan_main_hold_deadline) = millis() + 15000;
+                                            - script.execute: fan_main_apply_local
+                                            - script.execute: fan_main_send_pct
+                                      - label:
+                                          id: main_fan_mode_label
+                                          align: center
+                                          y: -52
                                           text: "Direkt"
                                           text_font: roboto15_font
+                                          text_color: $text_tertiary
+                                      - label:
+                                          id: main_fan_speed_label
+                                          align: center
+                                          y: 2
+                                          text: "--%"
+                                          text_font: roboto36_font
                                           text_color: $text_primary
-                                    on_click:
-                                      - homeassistant.service:
-                                          service: fan.set_preset_mode
-                                          data:
-                                            entity_id: fan.dmaker_de_454884949_p33_s_2_fan
-                                          data_template:
-                                            preset_mode: "{{ pm }}"
-                                          variables:
-                                            pm: !lambda |-
-                                              if (id(fan_main_preset).state == "Direkte brise") {
-                                                return std::string("Natürliche brise");
-                                              }
-                                              return std::string("Direkte brise");
+                                      - button:
+                                          id: main_fan_power_button
+                                          align: bottom_mid
+                                          x: -38
+                                          y: -2
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          checked:
+                                            bg_color: $tint_blue
+                                            text_color: $accent_blue
+                                            border_color: $accent_blue
+                                          checkable: true
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text_font: icon_font_small
+                                                text: $power
+                                          on_click:
+                                            - homeassistant.service:
+                                                service: fan.toggle
+                                                data:
+                                                  entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+                                      # Cycles the two presets the entity
+                                      # offers; the icon (leaf = natural,
+                                      # fan = direct) is set by the
+                                      # fan_main_preset sensor. Spelling must
+                                      # match HA byte for byte.
+                                      - button:
+                                          id: main_fan_mode_button
+                                          align: bottom_mid
+                                          x: 38
+                                          y: -2
+                                          width: 56
+                                          height: 56
+                                          pad_all: 0
+                                          radius: 28
+                                          bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          widgets:
+                                            - label:
+                                                id: main_fan_mode_icon
+                                                align: center
+                                                text_font: icon_font_small
+                                                text_color: $text_primary
+                                                text: $fan
+                                          on_click:
+                                            - homeassistant.service:
+                                                service: fan.set_preset_mode
+                                                data:
+                                                  entity_id: fan.dmaker_de_454884949_p33_s_2_fan
+                                                data_template:
+                                                  preset_mode: "{{ pm }}"
+                                                variables:
+                                                  pm: !lambda |-
+                                                    if (id(fan_main_preset).state == "Direkte brise") {
+                                                      return std::string("Natürliche brise");
+                                                    }
+                                                    return std::string("Direkte brise");
 
                           # Sleep timer. The entity's own step is 1 minute over
                           # 0..480, which is unusable by touch, so the buttons
                           # move in 15-minute steps and clamp to the range.
+                          # Same height as the heating tab's power button so
+                          # both dials get the same vertical space.
                           - obj:
                               width: 100%
-                              height: 48
+                              height: 64
                               bg_opa: TRANSP
                               border_width: 0
                               pad_all: 0
