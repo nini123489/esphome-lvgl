@@ -924,3 +924,38 @@ binary_sensor:
             id: light_power_button
             state:
               checked: !lambda return x;
+
+  # ===========================================================================
+  # LIGHT AUTOMATION (Lampe tab: manual controls vs. automation panel)
+  # ===========================================================================
+  # Three HA booleans decide what the Lampe tab shows. Each one just kicks the
+  # shared render script, which reads all three -- so a missing or late
+  # initial state cannot leave the tab in a half-updated state.
+  #   lichtautomatik          master switch of the light automation
+  #   lichtautomatik_pausiert manual-override lock (set when the lamp was
+  #                           touched by hand; automation stays off the lamp)
+  #   nachtmodus              night mode, only changes the wording/checked
+  #                           state inside the panel
+  - platform: homeassistant
+    id: light_auto_enabled
+    entity_id: input_boolean.lichtautomatik
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - script.execute: light_auto_render
+
+  - platform: homeassistant
+    id: light_auto_paused
+    entity_id: input_boolean.lichtautomatik_pausiert
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - script.execute: light_auto_render
+
+  - platform: homeassistant
+    id: light_night_mode
+    entity_id: input_boolean.nachtmodus
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - script.execute: light_auto_render

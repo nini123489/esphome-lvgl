@@ -588,6 +588,40 @@ script:
           state:
             checked: !lambda 'return tab == "Szenen";'
 
+  # Lampe tab: swap between the manual control body and the automation panel.
+  # "Automation running" = HA master switch on AND manual-override lock off.
+  # The lock matters: while it is set the automation deliberately keeps its
+  # hands off the lamp, so the sliders belong on screen even though the master
+  # switch still reads "on".
+  # All three binary sensors call this script and it re-reads all of them, so
+  # the order in which HA delivers the initial states does not matter.
+  - id: light_auto_render
+    mode: single
+    then:
+      - lvgl.widget.update:
+          id: light_auto_panel
+          hidden: !lambda 'return !(id(light_auto_enabled).state && !id(light_auto_paused).state);'
+      - lvgl.widget.update:
+          id: light_manual_body
+          hidden: !lambda 'return (id(light_auto_enabled).state && !id(light_auto_paused).state);'
+      - lvgl.widget.update:
+          id: light_auto_on_box
+          hidden: !lambda 'return (id(light_auto_enabled).state && !id(light_auto_paused).state);'
+      - lvgl.label.update:
+          id: light_auto_status_label
+          text: !lambda |-
+            if (id(light_night_mode).state) return std::string("Nachtmodus aktiv");
+            return std::string("Lichtautomatik aktiv");
+      - lvgl.label.update:
+          id: light_auto_night_label
+          text: !lambda |-
+            if (id(light_night_mode).state) return std::string("Nachtmodus beenden");
+            return std::string("Nachtmodus aktivieren");
+      - lvgl.widget.update:
+          id: light_auto_night_button
+          state:
+            checked: !lambda 'return id(light_night_mode).state;'
+
   # Resize the stack-card arcs to the space the notification row leaves over.
   # The row is SIZE_CONTENT (one 46px line per notification), so there are
   # four states: row collapsed 340px, empty placeholder 300px, one
@@ -2293,9 +2327,13 @@ lvgl:
                           pad_row: 10
                         widgets:
 
-                          # Title
+                          # Title row: name on the left, automation button on the right.
+                          # The button only appears while the automation is OFF -- when it
+                          # runs, the automation panel below carries its own deactivate
+                          # button and this one would be redundant. Visibility is owned by
+                          # script light_auto_render.
                           - obj:
-                              width: SIZE_CONTENT
+                              width: 100%
                               height: 34
                               bg_opa: TRANSP
                               border_width: 0
@@ -2305,21 +2343,81 @@ lvgl:
                               layout:
                                 type: flex
                                 flex_flow: row
+                                flex_align_main: space_between
                                 flex_align_cross: center
                                 flex_align_track: center
-                                pad_column: 8
                               widgets:
-                                - label:
-                                    text_font: icon_font_small
-                                    text_color: $accent_amber
-                                    text: $desk_lamp
-                                - label:
-                                    text: "Lampe"
-                                    text_font: roboto17_font
-                                    text_color: $text_primary
+                                - obj:
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    clickable: false
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                      flex_align_cross: center
+                                      flex_align_track: center
+                                      pad_column: 8
+                                    widgets:
+                                      - label:
+                                          text_font: icon_font_small
+                                          text_color: $accent_amber
+                                          text: $desk_lamp
+                                      - label:
+                                          text: "Lampe"
+                                          text_font: roboto17_font
+                                          text_color: $text_primary
+                                # Reactivate. Wrapped in an obj because "hidden" on a plain
+                                # obj is the pattern used everywhere else in this file, and
+                                # the button itself stays a simple label-only button like
+                                # scene_abendlicht_button -- no layout on a button.
+                                # Runs the HA script rather than a plain turn_on: the script
+                                # also clears the manual-override lock, otherwise the master
+                                # switch would read "on" while the automation still keeps its
+                                # hands off the lamp. Side effect: it also ends night mode.
+                                - obj:
+                                    id: light_auto_on_box
+                                    width: SIZE_CONTENT
+                                    height: SIZE_CONTENT
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    scrollbar_mode: "off"
+                                    scrollable: false
+                                    clickable: false
+                                    hidden: true
+                                    layout:
+                                      type: flex
+                                      flex_flow: row
+                                    widgets:
+                                      - button:
+                                          id: light_auto_on_button
+                                          width: 150
+                                          height: 34
+                                          pad_all: 0
+                                          radius: 17
+                                          bg_color: $control_inner_color
+                                          border_width: 1
+                                          border_color: $border_circle
+                                          widgets:
+                                            - label:
+                                                align: center
+                                                text: "Automatik an"
+                                                text_font: roboto15_font
+                                                text_color: $accent_green
+                                          on_click:
+                                            - homeassistant.service:
+                                                service: script.turn_on
+                                                data:
+                                                  entity_id: script.automatik_zuruecksetzen
 
-                          # Body: side button column + view content area
+                          # Body: side button column + view content area. Hidden as a whole
+                          # while the automation runs (script light_auto_render).
                           - obj:
+                              id: light_manual_body
                               width: 100%
                               flex_grow: 1
                               bg_opa: TRANSP
@@ -2743,6 +2841,88 @@ lvgl:
                                                 id: light_view_ct_button
                                                 state:
                                                   checked: true
+
+                          # Automation panel -- replaces the entire control body while the
+                          # light automation is running, so the sliders cannot fight it.
+                          # "Running" means: master switch on AND manual-override lock off.
+                          - obj:
+                              id: light_auto_panel
+                              width: 100%
+                              flex_grow: 1
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              scrollable: false
+                              hidden: true
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: column
+                                flex_align_main: center
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_row: 12
+                              widgets:
+                                - label:
+                                    id: light_auto_status_label
+                                    text: "Lichtautomatik aktiv"
+                                    text_font: roboto19_font
+                                    text_color: $text_primary
+                                - button:
+                                    id: light_auto_off_button
+                                    width: 280
+                                    height: 52
+                                    pad_all: 0
+                                    radius: 26
+                                    bg_color: $control_inner_color
+                                    border_width: 1
+                                    border_color: $border_circle
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Automatik deaktivieren"
+                                          text_font: roboto15_font
+                                          text_color: $text_secondary
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: input_boolean.turn_off
+                                          data:
+                                            entity_id: input_boolean.lichtautomatik
+                                # Toggle, not a one-way switch: the label and checked state are
+                                # rewritten by light_auto_render from the HA boolean.
+                                - button:
+                                    id: light_auto_night_button
+                                    width: 280
+                                    height: 52
+                                    pad_all: 0
+                                    radius: 26
+                                    bg_color: $control_inner_color
+                                    text_color: $text_secondary
+                                    border_width: 1
+                                    border_color: $border_circle
+                                    checked:
+                                      bg_color: $tint_blue
+                                      border_color: $accent_blue
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          text_font: icon_font_small
+                                          text_color: $accent_blue
+                                          align: left_mid
+                                          x: 20
+                                          text: $nightlight
+                                      - label:
+                                          id: light_auto_night_label
+                                          align: center
+                                          text: "Nachtmodus aktivieren"
+                                          text_font: roboto15_font
+                                          text_color: $text_secondary
+                                    on_click:
+                                      - homeassistant.service:
+                                          service: input_boolean.toggle
+                                          data:
+                                            entity_id: input_boolean.nachtmodus
 
 
               # ---------------- vertical tab strip (right edge) ---------------
