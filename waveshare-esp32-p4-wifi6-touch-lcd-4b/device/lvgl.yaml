@@ -3301,7 +3301,7 @@ lvgl:
               pad_column: 12
             widgets:
               - button:
-                  id: main_quick_weather_button
+                  id: main_quick_vacuum_button
                   flex_grow: 1
                   height: 96
                   pad_all: 0
@@ -3329,15 +3329,15 @@ lvgl:
                           - label:
                               text_font: icon_font_small
                               text_color: $text_primary
-                              text: $wx_partly_cloudy
+                              text: $vacuum
                           - label:
-                              text: "Wetter"
+                              text: "Staubi-Saugi"
                               text_font: roboto17_font
                               text_color: $text_secondary
                   on_click:
                     - script.execute:
                         id: nav_to_page
-                        page: "Wetter"
+                        page: "Staubi-Saugi"
               - button:
                   id: main_quick_printer_button
                   flex_grow: 1
@@ -4435,7 +4435,7 @@ lvgl:
                         id: nav_to_page
                         page: "Szenen"
               - button:
-                  id: more_vacuum_button
+                  id: more_weather_button
                   grid_cell_column_pos: 1
                   grid_cell_row_pos: 1
                   grid_cell_x_align: stretch
@@ -4465,15 +4465,15 @@ lvgl:
                           - label:
                               text_font: $icon_font
                               text_color: $text_primary
-                              text: $vacuum
+                              text: $wx_partly_cloudy
                           - label:
-                              text: "Staubi-Saugi"
+                              text: "Wetter"
                               text_font: roboto17_font
                               text_color: $text_primary
                   on_click:
                     - script.execute:
                         id: nav_to_page
-                        page: "Staubi-Saugi"
+                        page: "Wetter"
 
     - id: heating_lab_page
       layout:

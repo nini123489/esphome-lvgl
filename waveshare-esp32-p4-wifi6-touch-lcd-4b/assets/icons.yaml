@@ -83,6 +83,7 @@ font:
       "\U000F1A4C",  # mdi-lightbulb-night (Nachtmodus-Button, Lampe tab)
       "\U000F040A",  # mdi-play (vacuum page start button)
       "\U000F04DB",  # mdi-stop (vacuum page stop button)
+      "\U000F070D",  # mdi-robot-vacuum (Übersicht quick button)
       ]
 
 # Map icons to names
