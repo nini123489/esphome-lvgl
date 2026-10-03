@@ -81,6 +81,8 @@ font:
       "\U000F03D8",  # mdi-palette (light color view)
       "\U000F05A8",  # mdi-white-balance-sunny (light color-temp view)
       "\U000F1A4C",  # mdi-lightbulb-night (Nachtmodus-Button, Lampe tab)
+      "\U000F040A",  # mdi-play (vacuum page start button)
+      "\U000F04DB",  # mdi-stop (vacuum page stop button)
       ]
 
 # Map icons to names
@@ -144,3 +146,5 @@ substitutions:
   brightness_mid:     "\U000F00DD"
   palette:            "\U000F03D8"
   wb_sunny:           "\U000F05A8"
+  play:               "\U000F040A"
+  stop:               "\U000F04DB"

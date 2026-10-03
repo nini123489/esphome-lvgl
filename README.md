@@ -17,6 +17,7 @@ Konfig steckt komplett im Subordner [`waveshare-esp32-p4-wifi6-touch-lcd-4b/`](w
 - **Stack-Widget**: Heizung (Eve-Thermostat, ±0.5 °C, Ist/Ziel-Balken, Auto/Manuell/Aus), Ventilator (Xiaomi Standventilator: An/Aus, Geschwindigkeit, Schwenken, Preset, Sleep-Timer), Szenen.
 - **Solar-PV-Visualisierung** auf der Energie-Seite — Plus-Layout mit Flussrichtungs-Pfeilen (Sonnenbatterie-Daten) und alternativer kompakter Listenansicht (Toggle oben rechts).
 - **Detail-Pages** für Wetter (4-Slot-Stunden-Forecast), 3D-Drucker, Energie, Heizung, Staubsauger, Szenen und eine „Mehr"-Seite als Sammelpunkt.
+- **Staubsauger-Seite** („Staubi-Saugi“): Räume antippen, um sie mit den gewählten Einstellungen (Saugen/Wischen/Beides, Saugkraft, Wasser) auf die HA-Saugliste zu setzen. Erneutes Antippen mit denselben Einstellungen nimmt den Raum wieder herunter. Badges zeigen Reihenfolge und Modus. „Starten“ arbeitet die Liste ab, während des Laufs wird daraus „Stoppen“. Darüber stehen Status und Akku des Roboters.
 - **Mitteilungen**: 2 Inline-Slots auf dem Dashboard (Icon, Text, Zeitstempel), Auto-Expire, Antippen verwirft. Per HA-Switch „Mitteilungen einklappen" verschwindet die Zeile, solange sie leer ist.
 - **HA-Fernsteuerung**: Aktive Seite per Select wählen, Default-Seite konfigurieren, Auto-Revert nach Idle (Zeit einstellbar) / nach Display-Off ein- oder ausschalten — alles über HA-Entities exposed.
 - **Tap-to-Wake** + Präsenz-Sensor-gesteuerter Bildschirmschoner.
@@ -30,7 +31,8 @@ Konfig steckt komplett im Subordner [`waveshare-esp32-p4-wifi6-touch-lcd-4b/`](w
 5. **Heizung**: `climate.eve_thermo_20ebp1701`. Bei abweichender Entity-ID die drei Stellen in `device/sensors.yaml` und die `homeassistant.service`-Blöcke im Heizung-Tab in `device/lvgl.yaml` anpassen.
 6. **Ventilator**: `fan.dmaker_de_454884949_p33_s_2_fan` + `number.dmaker_de_454884949_p33_off_delay_time_p_3_1` (Sleep-Timer). Die Preset-Namen („Direkte brise" / „Natürliche brise") müssen exakt mit dem `preset_modes`-Attribut der Entity übereinstimmen.
 7. **Luftfeuchte**: `sensor.eve_room_af92_humidity`.
-8. Compilen & Flashen.
+8. **Staubsauger**: `vacuum.x50_ultra_complete` (Dreame) plus die HA-Saugliste: `input_text.vacuum_queue` und die Skripte `script.raum_zur_saugliste_hinzufugen`, `script.raum_von_saugliste_entfernen`, `script.saugliste_leeren` und `script.saugroutine_starten`. Die Raumnamen und Segment-IDs stehen im Raster am Ende von `device/lvgl.yaml` und in `vac_render` (`names[]`).
+9. Compilen & Flashen.
 
 ## Customizing
 

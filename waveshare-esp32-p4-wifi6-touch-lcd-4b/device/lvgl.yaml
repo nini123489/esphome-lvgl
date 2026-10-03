@@ -149,6 +149,29 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '""'
+  # Vacuum page: settings applied to the next room tapped. Same codes as the
+  # HA queue (input_text.vacuum_queue, "segment:saug:wisch"):
+  #   vac_mode    0 = Saugen, 1 = Wischen, 2 = Beides
+  #   vac_suction 0..3 = Leise/Standard/Stark/Turbo
+  #   vac_water   1..3 = Niedrig/Mittel/Hoch
+  # Defaults match the Onvis button automation (Standard / Mittel).
+  - id: vac_mode
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: vac_suction
+    type: int
+    restore_value: false
+    initial_value: '1'
+  - id: vac_water
+    type: int
+    restore_value: false
+    initial_value: '2'
+  # Scratch result of vac_room_tap's lookup: true = tap removes the room.
+  - id: vac_tap_remove
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 script:
   # Central page-navigation entry point. Takes a HA-facing label and routes to
@@ -540,6 +563,183 @@ script:
           state:
             checked: !lambda 'return filter == "plan";'
       - script.execute: cal_render
+
+  # ===========================================================================
+  # VACUUM PAGE (Staubi-Saugi) — room queue for script.saugroutine_starten
+  # ===========================================================================
+  # The queue itself lives in HA (input_text.vacuum_queue, entries
+  # "segment:saug:wisch" comma-separated, saug -1 = nicht saugen, wisch 0 =
+  # nicht wischen). The display never writes it directly: it only calls the
+  # HA scripts that own the format, and re-renders from the text sensor echo.
+
+  # Rebuild room buttons (checked + "1. Saugen" badge), the summary line and
+  # the start/stop button from the queue text and the routine's running state.
+  - id: vac_render
+    then:
+      - lambda: |-
+          // Index = segment id on the Dreame map (1..13), 0 unused.
+          lv_obj_t* btns[14] = { nullptr,
+            id(vac_room_1),  id(vac_room_2),  id(vac_room_3),  id(vac_room_4),
+            id(vac_room_5),  id(vac_room_6),  id(vac_room_7),  id(vac_room_8),
+            id(vac_room_9),  id(vac_room_10), id(vac_room_11), id(vac_room_12),
+            id(vac_room_13) };
+          lv_obj_t* badges[14] = { nullptr,
+            id(vac_badge_1),  id(vac_badge_2),  id(vac_badge_3),  id(vac_badge_4),
+            id(vac_badge_5),  id(vac_badge_6),  id(vac_badge_7),  id(vac_badge_8),
+            id(vac_badge_9),  id(vac_badge_10), id(vac_badge_11), id(vac_badge_12),
+            id(vac_badge_13) };
+          static const char* names[14] = { "",
+            "Raum 1", "Balkon", "Schlafzimmer", "Luki", "Bad", "Wohnzimmer",
+            "Flur", "Flur 2", "Bad 2", "HWR 2", "Nini", "HWR", "Küche" };
+          for (int s = 1; s < 14; s++) {
+            lv_obj_clear_state(btns[s], LV_STATE_CHECKED);
+            lv_label_set_text(badges[s], "");
+          }
+          std::string q = id(vac_queue).has_state() ? id(vac_queue).state : "";
+          if (q == "unknown" || q == "unavailable" || q == "[]") q = "";
+          int count = 0;
+          std::string order;
+          size_t start = 0;
+          while (start < q.size()) {
+            size_t end = q.find(',', start);
+            if (end == std::string::npos) end = q.size();
+            std::string e = q.substr(start, end - start);
+            start = end + 1;
+            int seg = 0, suc = 1, mop = 0;
+            if (e.empty() || sscanf(e.c_str(), "%d:%d:%d", &seg, &suc, &mop) < 1) continue;
+            count++;
+            const char* mode = suc < 0 ? "Wischen" : (mop > 0 ? "Beides" : "Saugen");
+            if (seg >= 1 && seg < 14) {
+              lv_obj_add_state(btns[seg], LV_STATE_CHECKED);
+              char buf[24];
+              snprintf(buf, sizeof(buf), "%d. %s", count, mode);
+              lv_label_set_text(badges[seg], buf);
+            }
+            if (!order.empty()) order += ", ";
+            order += (seg >= 1 && seg < 14) ? names[seg] : ("Raum " + to_string(seg));
+          }
+          bool running = id(vac_routine_running).state;
+          std::string summary;
+          if (count == 0) {
+            summary = running ? "Routine läuft" : "Räume antippen zum Hinzufügen";
+          } else {
+            summary = (running ? "Als Nächstes: " : "") + order;
+          }
+          lv_label_set_text(id(vac_summary_label), summary.c_str());
+          lv_label_set_text(id(vac_start_icon), running ? "\U000F04DB" : "\U000F040A");
+          lv_label_set_text(id(vac_start_label), running ? "Stoppen" : "Starten");
+          lv_obj_set_style_bg_color(id(vac_start_button),
+              lv_color_hex(running ? $tint_amber : $tint_green), LV_PART_MAIN);
+          lv_color_t fg = lv_color_hex(running ? $accent_orange : $accent_green);
+          lv_obj_set_style_text_color(id(vac_start_icon), fg, LV_PART_MAIN);
+          lv_obj_set_style_text_color(id(vac_start_label), fg, LV_PART_MAIN);
+          // Nothing to start: dim the button (the tap handler ignores it too).
+          lv_obj_set_style_opa(id(vac_start_button),
+              (!running && count == 0) ? LV_OPA_40 : LV_OPA_COVER, LV_PART_MAIN);
+          lv_obj_set_style_opa(id(vac_clear_button),
+              count == 0 ? LV_OPA_40 : LV_OPA_COVER, LV_PART_MAIN);
+
+  # Chips are radio groups: sync their checked states to the globals and dim
+  # the level row that the chosen mode ignores.
+  - id: vac_settings_render
+    then:
+      - lambda: |-
+          lv_obj_t* modes[3] = { id(vac_mode_chip_0), id(vac_mode_chip_1), id(vac_mode_chip_2) };
+          lv_obj_t* sucs[4]  = { id(vac_suc_chip_0), id(vac_suc_chip_1),
+                                 id(vac_suc_chip_2), id(vac_suc_chip_3) };
+          lv_obj_t* mops[3]  = { id(vac_mop_chip_1), id(vac_mop_chip_2), id(vac_mop_chip_3) };
+          for (int i = 0; i < 3; i++) {
+            if (i == id(vac_mode)) lv_obj_add_state(modes[i], LV_STATE_CHECKED);
+            else lv_obj_clear_state(modes[i], LV_STATE_CHECKED);
+          }
+          for (int i = 0; i < 4; i++) {
+            if (i == id(vac_suction)) lv_obj_add_state(sucs[i], LV_STATE_CHECKED);
+            else lv_obj_clear_state(sucs[i], LV_STATE_CHECKED);
+          }
+          for (int i = 0; i < 3; i++) {
+            if (i + 1 == id(vac_water)) lv_obj_add_state(mops[i], LV_STATE_CHECKED);
+            else lv_obj_clear_state(mops[i], LV_STATE_CHECKED);
+          }
+          lv_obj_set_style_opa(id(vac_suc_row),
+              id(vac_mode) == 1 ? LV_OPA_40 : LV_OPA_COVER, LV_PART_MAIN);
+          lv_obj_set_style_opa(id(vac_mop_row),
+              id(vac_mode) == 0 ? LV_OPA_40 : LV_OPA_COVER, LV_PART_MAIN);
+
+  # Room tap. Not queued -> add with the current chip settings. Queued with
+  # exactly these settings -> remove. Queued with other settings -> the add
+  # script replaces the entry in place (keeps its position), so a second tap
+  # after changing the chips just updates the room.
+  - id: vac_room_tap
+    parameters:
+      seg: int
+    then:
+      - lambda: |-
+          int suc = id(vac_mode) == 1 ? -1 : id(vac_suction);
+          int mop = id(vac_mode) == 0 ? 0 : id(vac_water);
+          std::string q = id(vac_queue).has_state() ? id(vac_queue).state : "";
+          std::string prefix = to_string(seg) + ":";
+          std::string wanted = prefix + to_string(suc) + ":" + to_string(mop);
+          bool queued = false, same = false;
+          size_t start = 0;
+          while (start < q.size()) {
+            size_t end = q.find(',', start);
+            if (end == std::string::npos) end = q.size();
+            std::string e = q.substr(start, end - start);
+            start = end + 1;
+            if (e.compare(0, prefix.size(), prefix) == 0) {
+              queued = true;
+              same = (e == wanted);
+              break;
+            }
+          }
+          id(vac_tap_remove) = queued && same;
+      - if:
+          condition:
+            lambda: 'return id(vac_tap_remove);'
+          then:
+            - homeassistant.service:
+                service: script.raum_von_saugliste_entfernen
+                data_template:
+                  segment_id: "{{ seg }}"
+                variables:
+                  seg: !lambda 'return seg;'
+          else:
+            - homeassistant.service:
+                service: script.raum_zur_saugliste_hinzufugen
+                data_template:
+                  segment_id: "{{ seg }}"
+                  saugen: "{{ saugen }}"
+                  wischen: "{{ wischen }}"
+                variables:
+                  seg: !lambda 'return seg;'
+                  saugen: !lambda |-
+                    static const char* s[4] = { "Leise", "Standard", "Stark", "Turbo" };
+                    return std::string(id(vac_mode) == 1 ? "Aus" : s[id(vac_suction)]);
+                  wischen: !lambda |-
+                    static const char* w[4] = { "Aus", "Niedrig", "Mittel", "Hoch" };
+                    return std::string(id(vac_mode) == 0 ? "Aus" : w[id(vac_water)]);
+
+  # Status line under the title: vacuum state (German) + battery.
+  - id: vac_status_render
+    then:
+      - lvgl.label.update:
+          id: vac_status_label
+          text: !lambda |-
+            std::string s = id(vac_state).has_state() ? id(vac_state).state : "";
+            std::string de = s;
+            if (s == "docked")         de = "Angedockt";
+            else if (s == "cleaning")  de = "Reinigt";
+            else if (s == "returning") de = "Fährt zur Station";
+            else if (s == "paused")    de = "Pausiert";
+            else if (s == "idle")      de = "Bereit";
+            else if (s == "error")     de = "Fehler";
+            else if (s.empty() || s == "unavailable" || s == "unknown") de = "Nicht erreichbar";
+            if (!std::isnan(id(vac_battery).state)) {
+              char buf[24];
+              snprintf(buf, sizeof(buf), ", Akku %.0f %%", id(vac_battery).state);
+              de += buf;
+            }
+            return de;
 
   # Central stack-tab switcher: shows the chosen tab, updates the tab-strip
   # checked states and mirrors the choice into the HA-facing "Stack-Widget"
@@ -4943,3 +5143,869 @@ lvgl:
                   text_color: $text_primary
                   align: top_mid
                   y: 65
+
+              # Status line: vacuum state + battery (vac_status_render)
+              - label:
+                  id: vac_status_label
+                  text: "--"
+                  text_font: roboto15_font
+                  text_color: $text_tertiary
+                  align: top_mid
+                  y: 104
+
+              # Content: settings chips, room grid, action bar
+              - obj:
+                  x: 16
+                  y: 150
+                  width: 688
+                  height: 556
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  scrollable: false
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: column
+                    pad_row: 12
+                  widgets:
+                    # Settings for the next room tapped (vac_settings_render)
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: column
+                          pad_row: 8
+                        widgets:
+                          - obj:
+                              width: 100%
+                              height: 40
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_column: 8
+                              widgets:
+                                - label:
+                                    text: "Modus"
+                                    text_font: roboto15_font
+                                    text_color: $text_tertiary
+                                    width: 120
+                                - button:
+                                    id: vac_mode_chip_0
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    state:
+                                      checked: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Saugen"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_mode) = 0;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_mode_chip_1
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Wischen"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_mode) = 1;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_mode_chip_2
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Beides"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_mode) = 2;'
+                                      - script.execute: vac_settings_render
+                          - obj:
+                              id: vac_suc_row
+                              width: 100%
+                              height: 40
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_column: 8
+                              widgets:
+                                - label:
+                                    text: "Saugkraft"
+                                    text_font: roboto15_font
+                                    text_color: $text_tertiary
+                                    width: 120
+                                - button:
+                                    id: vac_suc_chip_0
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Leise"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_suction) = 0;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_suc_chip_1
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    state:
+                                      checked: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Standard"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_suction) = 1;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_suc_chip_2
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Stark"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_suction) = 2;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_suc_chip_3
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Turbo"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_suction) = 3;'
+                                      - script.execute: vac_settings_render
+                          - obj:
+                              id: vac_mop_row
+                              width: 100%
+                              height: 40
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              scrollbar_mode: "off"
+                              clickable: false
+                              opa: 40%
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_column: 8
+                              widgets:
+                                - label:
+                                    text: "Wasser"
+                                    text_font: roboto15_font
+                                    text_color: $text_tertiary
+                                    width: 120
+                                - button:
+                                    id: vac_mop_chip_1
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Niedrig"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_water) = 1;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_mop_chip_2
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    state:
+                                      checked: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Mittel"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_water) = 2;'
+                                      - script.execute: vac_settings_render
+                                - button:
+                                    id: vac_mop_chip_3
+                                    width: SIZE_CONTENT
+                                    height: 40
+                                    pad_all: 0
+                                    pad_left: 16
+                                    pad_right: 16
+                                    radius: 20
+                                    bg_color: $control_inner_color
+                                    checked:
+                                      bg_color: $tint_green
+                                      text_color: $accent_green
+                                    checkable: true
+                                    widgets:
+                                      - label:
+                                          align: center
+                                          text: "Hoch"
+                                          text_font: roboto15_font
+                                    on_click:
+                                      - lambda: 'id(vac_water) = 3;'
+                                      - script.execute: vac_settings_render
+
+                    # Room grid. Tap = add with the chip settings; tap again with the same
+                    # settings = remove (vac_room_tap). Badge = queue position + mode.
+                    - obj:
+                        width: 100%
+                        flex_grow: 1
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        scrollbar_mode: "off"
+                        scrollable: false
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: row_wrap
+                          flex_align_cross: start
+                          pad_column: 10
+                          pad_row: 8
+                        widgets:
+                          - button:
+                              id: vac_room_6
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Wohnzimmer"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_6
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 6
+                          - button:
+                              id: vac_room_13
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Küche"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_13
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 13
+                          - button:
+                              id: vac_room_7
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Flur"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_7
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 7
+                          - button:
+                              id: vac_room_5
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Bad"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_5
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 5
+                          - button:
+                              id: vac_room_3
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Schlafzimmer"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_3
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 3
+                          - button:
+                              id: vac_room_4
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Luki"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_4
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 4
+                          - button:
+                              id: vac_room_11
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Nini"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_11
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 11
+                          - button:
+                              id: vac_room_12
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "HWR"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_12
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 12
+                          - button:
+                              id: vac_room_2
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Balkon"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_2
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 2
+                          - button:
+                              id: vac_room_8
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Flur 2"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_8
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 8
+                          - button:
+                              id: vac_room_9
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Bad 2"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_9
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 9
+                          - button:
+                              id: vac_room_10
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "HWR 2"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_10
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 10
+                          - button:
+                              id: vac_room_1
+                              width: 164
+                              height: 72
+                              pad_all: 6
+                              radius: 18
+                              bg_color: $button_control_color
+                              border_width: 1
+                              border_color: $border_button
+                              text_color: $text_secondary
+                              checked:
+                                bg_color: $tint_green
+                                border_color: $accent_green
+                                text_color: $accent_green
+                              widgets:
+                                - label:
+                                    align: top_mid
+                                    y: 4
+                                    width: 100%
+                                    text_align: center
+                                    long_mode: dot
+                                    text: "Raum 1"
+                                    text_font: roboto17_font
+                                - label:
+                                    id: vac_badge_1
+                                    align: bottom_mid
+                                    y: -2
+                                    text: ""
+                                    text_font: roboto15_font
+                              on_click:
+                                - script.execute:
+                                    id: vac_room_tap
+                                    seg: 1
+
+                    # Action bar: queue summary, clear, start/stop
+                    - obj:
+                        width: 100%
+                        height: 76
+                        bg_color: $status_bg_color
+                        bg_opa: cover
+                        radius: 22
+                        border_width: 0
+                        pad_all: 0
+                        pad_left: 18
+                        pad_right: 8
+                        scrollbar_mode: "off"
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: row
+                          flex_align_cross: center
+                          flex_align_track: center
+                          pad_column: 8
+                        widgets:
+                          - label:
+                              id: vac_summary_label
+                              text: "Räume antippen zum Hinzufügen"
+                              text_font: roboto15_font
+                              text_color: $text_secondary
+                              flex_grow: 1
+                              long_mode: dot
+                          - button:
+                              id: vac_clear_button
+                              width: 130
+                              height: 60
+                              pad_all: 0
+                              radius: 18
+                              bg_color: $control_inner_color
+                              opa: 40%
+                              widgets:
+                                - label:
+                                    align: center
+                                    text: "Leeren"
+                                    text_font: roboto17_font
+                              on_click:
+                                - homeassistant.service:
+                                    service: script.saugliste_leeren
+                          - button:
+                              id: vac_start_button
+                              width: 190
+                              height: 60
+                              pad_all: 0
+                              radius: 18
+                              bg_color: $tint_green
+                              opa: 40%
+                              layout:
+                                type: flex
+                                flex_flow: row
+                                flex_align_main: center
+                                flex_align_cross: center
+                                flex_align_track: center
+                                pad_column: 8
+                              widgets:
+                                - label:
+                                    id: vac_start_icon
+                                    text_font: icon_font_small
+                                    text_color: $accent_green
+                                    text: $play
+                                - label:
+                                    id: vac_start_label
+                                    text: "Starten"
+                                    text_font: roboto17_font
+                                    text_color: $accent_green
+                              on_click:
+                                - if:
+                                    condition:
+                                      binary_sensor.is_on: vac_routine_running
+                                    then:
+                                      # Stop: end the queue routine and send the robot home
+                                      # (otherwise it finishes the current room first).
+                                      - homeassistant.service:
+                                          service: script.turn_off
+                                          data:
+                                            entity_id: script.saugroutine_starten
+                                      - homeassistant.service:
+                                          service: vacuum.return_to_base
+                                          data:
+                                            entity_id: vacuum.x50_ultra_complete
+                                    else:
+                                      # turn_on, not a direct call: the routine runs for
+                                      # many minutes (same as the Onvis button automation).
+                                      - if:
+                                          condition:
+                                            lambda: |-
+                                              std::string q = id(vac_queue).has_state() ? id(vac_queue).state : "";
+                                              return !q.empty() && q != "unknown" && q != "unavailable" && q != "[]";
+                                          then:
+                                            - homeassistant.service:
+                                                service: script.turn_on
+                                                data:
+                                                  entity_id: script.saugroutine_starten

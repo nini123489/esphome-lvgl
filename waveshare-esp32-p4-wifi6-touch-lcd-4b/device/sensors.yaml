@@ -587,6 +587,16 @@ sensor:
           id: weather_wx_temp_3
           text: { format: "%.0f°", args: ['x'] }
 
+  # ===========================================================================
+  # VACUUM (Staubi-Saugi page) — battery for the status line
+  # ===========================================================================
+  - platform: homeassistant
+    id: vac_battery
+    entity_id: vacuum.x50_ultra_complete
+    attribute: battery_level
+    on_value:
+      - script.execute: vac_status_render
+
 # =============================================================================
 # TEXT SENSORS (String Values)
 # =============================================================================
@@ -828,6 +838,25 @@ text_sensor:
                 id: printer_lab_status_label
                 text: !lambda return x;
 
+  # ===========================================================================
+  # VACUUM (Staubi-Saugi page)
+  # ===========================================================================
+  # Room queue of the HA routine: "segment:saug:wisch" entries, written only
+  # by the HA scripts (vac_room_tap calls them). Every change re-renders the
+  # room buttons, badges and the action bar.
+  - platform: homeassistant
+    id: vac_queue
+    entity_id: input_text.vacuum_queue
+    on_value:
+      - script.execute: vac_render
+
+  # Robot state (docked/cleaning/returning/...) for the status line.
+  - platform: homeassistant
+    id: vac_state
+    entity_id: vacuum.x50_ultra_complete
+    on_value:
+      - script.execute: vac_status_render
+
 
 # =============================================================================
 # BINARY SENSORS (On/Off States)
@@ -959,3 +988,17 @@ binary_sensor:
     on_state:
       then:
         - script.execute: light_auto_render
+
+  # ===========================================================================
+  # VACUUM ROUTINE (Staubi-Saugi page)
+  # ===========================================================================
+  # script.saugroutine_starten is "on" while it works through the queue. It
+  # empties the queue at its start, so this is the only hint that a run is
+  # in progress -- turns the start button into a stop button.
+  - platform: homeassistant
+    id: vac_routine_running
+    entity_id: script.saugroutine_starten
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - script.execute: vac_render
